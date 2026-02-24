@@ -7,7 +7,7 @@ Leak-free normalization (train stats only)
 import numpy as np
 from keras.datasets import mnist, fashion_mnist
 from sklearn.model_selection import train_test_split
-
+from utils import set_seed
 
 # One-hot encoding
 def one_hot_encode(y, num_classes=10):
@@ -17,7 +17,7 @@ def one_hot_encode(y, num_classes=10):
     return one_hot
 
 
-# Flatten images (28x28 → 784)
+# Flatten images (28x28 -> 784)
 def flatten_images(X):
     return X.reshape(X.shape[0], -1).astype(np.float64)
 
@@ -46,7 +46,9 @@ def load_data(dataset="mnist", val_split=0.1, seed=42):
         X_test, y_test
     """
 
-    np.random.seed(seed)
+    # np.random.seed(seed)
+    
+    set_seed(seed)
 
     # Load dataset
     if dataset.lower() == "mnist":

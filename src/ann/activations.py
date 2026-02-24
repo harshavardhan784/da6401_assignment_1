@@ -55,7 +55,7 @@ def softmax_jacobian_vector_product(dA, A):
     Returns array of same shape as dA.
     """
     dot = np.sum(A * dA, axis=1, keepdims=True)   # (N, 1)
-    return A * (dA - dot)                          # (N, C)
+    return A * (dA - dot) # (N, C)
 
 def softmax_derivative(x):
     """Full per-sample Jacobian (kept for reference / W&B report analysis)."""
@@ -68,10 +68,7 @@ def softmax_derivative(x):
     return jacobian
 
 
-# -----------------------------------------------------------
-# Unified wrappers used by NeuralLayer
-# -----------------------------------------------------------
-
+# Unified wrappers used by NeuralLayers
 def activation_forward(Z, name):
     """Apply named activation to pre-activation matrix Z."""
     if name == "relu":

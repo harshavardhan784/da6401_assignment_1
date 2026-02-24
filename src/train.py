@@ -13,6 +13,8 @@ import numpy as np
 from utils.data_loader import load_data
 from utils import create_dir
 from ann.neural_network import NeuralNetwork
+from ann.objective_functions import compute_loss
+from ann.optimizers import NAG
 
 
 def parse_arguments():
@@ -68,36 +70,46 @@ def parse_arguments():
 def save_config(args, val_acc, model_path, config_path):
     """Serialise the CLI args + best val accuracy to a JSON file."""
     config = {
-        "dataset":        args.dataset,
-        "input_dim":      args.input_dim,
-        "output_dim":     args.output_dim,
-        "num_layers":     args.num_layers,
-        "hidden_size":    args.hidden_size,
-        "activation":     args.activation,
-        "weight_init":    args.weight_init,
-        "optimizer":      args.optimizer,
-        "learning_rate":  args.learning_rate,
-        "batch_size":     args.batch_size,
-        "epochs":         args.epochs,
-        "loss":           args.loss,
-        "weight_decay":   args.weight_decay,
-        "best_val_acc":   round(float(val_acc), 6),
-        "model_path":     model_path,
+        "dataset":       args.dataset,
+        "input_dim":     args.input_dim,
+        "output_dim":    args.output_dim,
+        "num_layers":    args.num_layers,
+        "hidden_size":   args.hidden_size,
+        "activation":    args.activation,
+        "weight_init":   args.weight_init,
+        "optimizer":     args.optimizer,
+        "learning_rate": args.learning_rate,
+        "batch_size":    args.batch_size,
+        "epochs":        args.epochs,
+        "loss":          args.loss,
+        "weight_decay":  args.weight_decay,
+        "best_val_acc":  round(float(val_acc), 6),
+        "model_path":    model_path,
     }
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
     print(f"Config saved to {config_path}")
 
 
+def run_batch(model, X_batch, y_batch, loss_name):
+    """
+    Run one mini-batch: forward → loss → backward.
+    For NAG the training loop handles look-ahead/restore around this call.
+    Returns batch loss.
+    """
+    y_pred = model.forward(X_batch)
+    batch_loss = compute_loss(y_batch, y_pred, loss_name)
+    model.backward(y_batch, y_pred)
+    return batch_loss
+
+
 def main():
     args = parse_arguments()
     print(args)
 
-    # Fixed dimensions for MNIST / Fashion-MNIST
     args.input_dim  = 784
     args.output_dim = 10
 
-    # Paths
     create_dir(args.model_dir)
     model_path  = os.path.join(args.model_dir, "best_model.npy")
     config_path = os.path.join(args.model_dir, "best_config.json")
@@ -108,12 +120,14 @@ def main():
     print("Building model...")
     model = NeuralNetwork(args)
 
-    n_samples   = X_train.shape[0]
+    # Detect if optimizer is NAG so we can do true look-ahead each batch
+    is_nag = isinstance(model.optimizer, NAG)
+
+    n_samples = X_train.shape[0]
     best_val_acc = -1.0
 
     print("Starting training...")
     for epoch in range(args.epochs):
-        # --- shuffle ---
         idx = np.random.permutation(n_samples)
         X_train = X_train[idx]
         y_train = y_train[idx]
@@ -125,10 +139,17 @@ def main():
             X_batch = X_train[start : start + args.batch_size]
             y_batch = y_train[start : start + args.batch_size]
 
-            from ann.objective_functions import compute_loss
-            y_pred     = model.forward(X_batch)
-            batch_loss = compute_loss(y_batch, y_pred, args.loss)
-            model.backward(y_batch, y_pred)
+            if is_nag:
+                # 1. Shift weights to look-ahead point: W - lr*beta*v
+                model.optimizer.apply_lookahead(model.layers)
+                # 2. Compute gradients at the look-ahead point
+                batch_loss = run_batch(model, X_batch, y_batch, args.loss)
+                # 3. Restore original weights
+                model.optimizer.restore_weights(model.layers)
+            else:
+                batch_loss = run_batch(model, X_batch, y_batch, args.loss)
+
+            # 4. Apply optimizer update (uses gradients stored in each layer)
             model.update_weights()
 
             epoch_loss  += batch_loss
@@ -139,18 +160,17 @@ def main():
 
         print(f"Epoch {epoch + 1}/{args.epochs}  |  loss: {avg_loss:.4f}  |  val_acc: {val_acc:.4f}", end="")
 
-        # --- save best checkpoint ---
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             model.save(model_path)
             save_config(args, best_val_acc, model_path, config_path)
-            print(f"  ← new best!")
+            print(f"  <- new best!")
         else:
             print()
 
     print(f"\nTraining complete! Best validation accuracy: {best_val_acc:.4f}")
-    print(f"Best model  → {model_path}")
-    print(f"Best config → {config_path}")
+    print(f"Best model  -> {model_path}")
+    print(f"Best config -> {config_path}")
 
 
 if __name__ == '__main__':
