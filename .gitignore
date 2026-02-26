@@ -1,4 +1,13 @@
-.pyc
-_pycache__/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 .DS_Store
-_pycache_
+.env
+*.egg-info/
+dist/
+build/
+models/
+.wandb/
+wandb/
+notebooks/.ipynb_checkpoints/
