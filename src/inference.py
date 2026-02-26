@@ -7,7 +7,7 @@ import argparse
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-from data_loader import load_data
+from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
 from ann.objective_functions import compute_loss
 

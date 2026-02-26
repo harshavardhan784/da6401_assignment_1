@@ -27,6 +27,14 @@ class NeuralNetwork:
         hidden_sizes = cli_args.hidden_size
         num_hidden = cli_args.num_layers
 
+        # Guard: if user passes fewer -sz values than -nhl, raise clearly
+        if len(hidden_sizes) < num_hidden:
+            raise ValueError(
+                f"--num_layers (-nhl) is {num_hidden} but only {len(hidden_sizes)} "
+                f"values given for --hidden_size (-sz). "
+                f"Provide exactly {num_hidden} values, e.g. -sz " +
+                " ".join(["128"] * num_hidden)
+            )
         layer_dims = [input_dim] + hidden_sizes[:num_hidden] + [output_dim]
 
         self.layers = []
