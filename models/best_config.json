@@ -1,0 +1,21 @@
+{
+  "dataset": "fashion_mnist",
+  "input_dim": 784,
+  "output_dim": 10,
+  "num_layers": 3,
+  "hidden_size": [
+    128,
+    128,
+    128
+  ],
+  "activation": "tanh",
+  "weight_init": "xavier",
+  "optimizer": "adam",
+  "learning_rate": 0.001,
+  "batch_size": 32,
+  "epochs": 15,
+  "loss": "cross_entropy",
+  "weight_decay": 0.0,
+  "best_val_acc": 0.894667,
+  "model_path": "../models\\best_model.npy"
+}
