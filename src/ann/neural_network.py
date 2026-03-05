@@ -2,20 +2,23 @@
 Main Neural Network Model
 Orchestrates forward pass, backward pass, weight updates, training loop,
 and evaluation.
+
+Key contract with autograder
+-----------------------------
+forward()  → returns RAW LOGITS (Z of output layer), NOT softmax probabilities.
+             Softmax is only applied internally during loss computation.
+backward() → returns (grad_W, grad_b) of the FIRST layer (input layer gradients),
+             which is what the autograder unpacks as:
+             grad_W, grad_b = model.backward(y_true, y_pred)
 """
 import numpy as np
 from ann.neural_layer import NeuralLayer
 from ann.objective_functions import compute_loss, compute_loss_gradient
 from ann.optimizers import Optimizers
+from ann.activations import softmax
 
 
 class NeuralNetwork:
-    """
-    Fully-connected feed-forward network built from NeuralLayer objects.
-    Takes a cli_args Namespace (from argparse or constructed manually).
-    All attributes are read with getattr + sensible defaults so the
-    autograder can pass a minimal Namespace without crashing.
-    """
 
     def __init__(self, cli_args):
         self.learning_rate = getattr(cli_args, 'learning_rate', 1e-3)
@@ -30,9 +33,6 @@ class NeuralNetwork:
         self._weight_init = getattr(cli_args, 'weight_init', 'xavier')
         optimizer    = getattr(cli_args, 'optimizer',   'adam')
 
-        # Normalise hidden_sizes
-        # - int  → replicate num_hidden times
-        # - list → use exactly as provided
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes] * num_hidden
         else:
@@ -52,7 +52,9 @@ class NeuralNetwork:
         self.layers = []
         for i in range(len(layer_dims) - 1):
             is_output = (i == len(layer_dims) - 2)
-            layer_act = 'softmax' if is_output else self._activation
+            # Output layer uses NO activation here — we return raw Z (logits).
+            # Softmax is applied separately only when needed (loss, evaluate).
+            layer_act = 'linear' if is_output else self._activation
 
             layer = NeuralLayer(
                 in_features  = layer_dims[i],
@@ -62,6 +64,8 @@ class NeuralNetwork:
                 weight_decay = self.weight_decay,
             )
 
+            # For cross-entropy backward, output layer needs softmax grad.
+            # We pass is_output_ce so NeuralLayer applies softmax inside backward.
             if is_output and self.loss_name == 'cross_entropy':
                 layer.is_output_ce = True
 
@@ -69,24 +73,43 @@ class NeuralNetwork:
 
     # ------------------------------------------------------------------
     def forward(self, X):
-        """Pass input through every layer and return the final output."""
+        """
+        Forward pass. Returns RAW LOGITS (pre-softmax Z) from the output layer.
+        Softmax is NOT applied here — autograder expects logits.
+        """
         A = X
         for layer in self.layers:
             A = layer.forward(A)
-        return A
+        return A   # raw logits, shape (N, 10)
 
     # ------------------------------------------------------------------
-    def backward(self, y_true, y_pred):
+    def _forward_with_softmax(self, X):
+        """Internal forward that applies softmax for loss/evaluate use."""
+        return softmax(self.forward(X))
+
+    # ------------------------------------------------------------------
+    def backward(self, y_true, y_pred_logits):
         """
-        Backpropagate loss gradient through all layers.
-        Returns list of gradients from last layer to first.
+        Backpropagate through all layers.
+
+        y_pred_logits : raw logits from forward() — softmax applied here
+                        before computing loss gradient.
+
+        Returns
+        -------
+        (grad_W, grad_b) of the FIRST layer — this is what the autograder
+        unpacks:  grad_W, grad_b = model.backward(y_true, y_pred)
         """
-        dA    = compute_loss_gradient(y_true, y_pred, loss_name=self.loss_name)
-        grads = []
+        # Apply softmax to get probabilities for loss gradient
+        y_pred_probs = softmax(y_pred_logits)
+        dA = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
+
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
-            grads.append(dA)
-        return grads
+
+        # Return gradients of the first (input) layer
+        first_layer = self.layers[0]
+        return first_layer.grad_W, first_layer.grad_b
 
     # ------------------------------------------------------------------
     def update_weights(self):
@@ -97,9 +120,10 @@ class NeuralNetwork:
     # ------------------------------------------------------------------
     def evaluate(self, X, y):
         """Return scalar accuracy. y must be one-hot encoded."""
-        y_pred      = self.forward(X)
-        predictions = np.argmax(y_pred, axis=1)
-        true_labels = np.argmax(y,      axis=1)
+        logits      = self.forward(X)
+        probs       = softmax(logits)
+        predictions = np.argmax(probs, axis=1)
+        true_labels = np.argmax(y, axis=1)
         return np.mean(predictions == true_labels)
 
     # ------------------------------------------------------------------
@@ -112,7 +136,7 @@ class NeuralNetwork:
     def load(self, path):
         """
         Load weights from a .npy file.
-        Rebuilds layers from the weight dict so architecture always matches.
+        Handles both new dict format and legacy list-of-dicts format.
         """
         data = np.load(path, allow_pickle=True)
         if data.ndim == 0:
@@ -121,7 +145,6 @@ class NeuralNetwork:
         if isinstance(data, dict):
             self.set_weights(data)
         else:
-            # Legacy list-of-dicts format
             if len(data) != len(self.layers):
                 raise ValueError("Checkpoint layer count does not match architecture.")
             for layer, wb in zip(self.layers, data):
@@ -143,27 +166,20 @@ class NeuralNetwork:
     def set_weights(self, weight_dict):
         """
         Set weights from a {W0, b0, W1, b1, ...} dict.
-
-        If the dict encodes a different number of layers than self.layers,
-        rebuild the layer list to match the dict so that shapes are always
-        consistent and the forward pass never sees mismatched dimensions.
+        Rebuilds layers if the dict encodes a different architecture.
         """
-        # Count how many weight matrices are in the dict
         n_layers_in_dict = sum(1 for k in weight_dict if k.startswith('W'))
 
         if n_layers_in_dict != len(self.layers):
-            # Infer layer_dims from the weight shapes in the dict
+            # Infer layer_dims from weight shapes and rebuild
             layer_dims = []
             for i in range(n_layers_in_dict):
                 W = weight_dict[f"W{i}"]
                 if i == 0:
-                    layer_dims.append(W.shape[0])   # input_dim
-                layer_dims.append(W.shape[1])        # out_dim of each layer
-
-            # Rebuild layers to match the weight dict exactly
+                    layer_dims.append(W.shape[0])
+                layer_dims.append(W.shape[1])
             self._build_layers(layer_dims)
 
-        # Now assign weights — shapes are guaranteed to match
         for i, layer in enumerate(self.layers):
             if f"W{i}" in weight_dict:
                 layer.W = weight_dict[f"W{i}"].copy()

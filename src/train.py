@@ -1,6 +1,9 @@
 """
 Main Training Script
 Supports all W&B logging required for Q2.3 – Q2.10.
+
+Important: model.forward() returns RAW LOGITS.
+           Softmax is applied via model._forward_with_softmax() for loss/eval.
 """
 
 import argparse
@@ -13,6 +16,7 @@ from utils import create_dir
 from ann.neural_network import NeuralNetwork
 from ann.objective_functions import compute_loss
 from ann.optimizers import NAG
+from ann.activations import softmax
 
 
 def parse_arguments():
@@ -36,20 +40,18 @@ def parse_arguments():
     parser.add_argument("-w_i", "--weight_init",   type=str,   default="xavier",
                         choices=["random", "xavier"])
 
-    # W&B — single declaration, accessible as -w_p or --wandb_project
     parser.add_argument("-w_p", "--wandb_project", type=str,   default=None)
     parser.add_argument("--wandb_entity",          type=str,   default=None)
     parser.add_argument("--run_name",              type=str,   default=None)
 
-    # Extra diagnostic logging flags
     parser.add_argument("--log_grad_norms",   action="store_true")
     parser.add_argument("--log_dead_neurons", action="store_true")
     parser.add_argument("--log_activations",  action="store_true")
     parser.add_argument("--log_neuron_grads", action="store_true")
     parser.add_argument("--zero_init",        action="store_true")
 
-    # Points to models/ folder at repo root (relative to src/)
-    parser.add_argument("--model_dir", type=str, default="../models")
+    # Save directly into src/ so autograder finds src/best_model.npy
+    parser.add_argument("--model_dir", type=str, default=".")
     return parser.parse_args()
 
 
@@ -191,14 +193,16 @@ def main():
 
             if is_nag:
                 model.optimizer.apply_lookahead(model.layers)
-                yp = model.forward(Xb)
-                bl = compute_loss(yb, yp, args.loss)
-                model.backward(yb, yp)
+                logits = model.forward(Xb)
+                probs  = softmax(logits)
+                bl     = compute_loss(yb, probs, args.loss)
+                model.backward(yb, logits)
                 model.optimizer.restore_weights(model.layers)
             else:
-                yp = model.forward(Xb)
-                bl = compute_loss(yb, yp, args.loss)
-                model.backward(yb, yp)
+                logits = model.forward(Xb)
+                probs  = softmax(logits)
+                bl     = compute_loss(yb, probs, args.loss)
+                model.backward(yb, logits)
 
             model.update_weights()
             epoch_loss  += bl
@@ -211,7 +215,8 @@ def main():
         avg_loss  = epoch_loss / num_batches
         val_acc   = model.evaluate(X_val, y_val)
         train_acc = model.evaluate(X_tr,  y_tr)
-        val_loss  = compute_loss(y_val, model.forward(X_val), args.loss)
+        val_probs = softmax(model.forward(X_val))
+        val_loss  = compute_loss(y_val, val_probs, args.loss)
 
         print(
             f"Epoch {epoch+1:>3}/{args.epochs} | "

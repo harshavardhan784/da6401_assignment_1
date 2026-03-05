@@ -1,7 +1,6 @@
 """
 Inference Script — evaluate a trained model on the test set.
-Default args match the best saved model so the autograder only needs
-to supply --model_path (or rely on the default).
+model.forward() returns raw logits; softmax applied here for metrics.
 """
 
 import argparse
@@ -11,13 +10,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
 from ann.objective_functions import compute_loss
+from ann.activations import softmax
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Run inference on test set')
 
-    # Default points to models/best_model.npy relative to src/
-    parser.add_argument('--model_path', type=str, default='../models/best_model.npy',
+    parser.add_argument('--model_path', type=str, default='best_model.npy',
                         help='Path to saved model weights (.npy)')
 
     parser.add_argument('-d',   '--dataset',      type=str,   default='mnist',
@@ -42,7 +41,6 @@ def parse_arguments():
 
 
 def load_model(args):
-    """Reconstruct NeuralNetwork from args and load saved weights."""
     args.input_dim  = 784
     args.output_dim = 10
     model = NeuralNetwork(args)
@@ -51,11 +49,12 @@ def load_model(args):
 
 
 def evaluate_model(model, X_test, y_test, loss_name='cross_entropy'):
-    logits = model.forward(X_test)
-    loss   = compute_loss(y_test, logits, loss_name=loss_name)
+    logits = model.forward(X_test)          # raw logits
+    probs  = softmax(logits)                # apply softmax for metrics
+    loss   = compute_loss(y_test, probs, loss_name=loss_name)
 
-    y_pred = np.argmax(logits, axis=1)
-    y_true = np.argmax(y_test,  axis=1)
+    y_pred = np.argmax(probs, axis=1)
+    y_true = np.argmax(y_test, axis=1)
 
     return {
         'logits':    logits,
