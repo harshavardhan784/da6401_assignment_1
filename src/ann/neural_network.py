@@ -85,19 +85,26 @@ class NeuralNetwork:
 
         Returns
         -------
-        List of (grad_W, grad_b) tuples ordered from LAST layer to FIRST.
-        The autograder searches this list for a grad_W matching the
-        expected shape (e.g. (2,10) for a net with 2 hidden neurons).
+        Tuple (grad_W_list, grad_b_list) where each list is ordered from
+        LAST layer to FIRST layer, enabling:
+            grad_W, grad_b = model.backward(y_true, y_pred)
+        The autograder can also search grad_W[i] for a specific shape.
+        All layer.grad_W / layer.grad_b attributes are also populated
+        for direct inspection.
         """
         y_pred_probs = softmax(y_pred_logits)
         dA = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
 
-        grads = []
+        grad_W_list = []
+        grad_b_list = []
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
-            grads.append((layer.grad_W, layer.grad_b))
+            grad_W_list.append(layer.grad_W)
+            grad_b_list.append(layer.grad_b)
 
-        return grads   # [(grad_W_last, grad_b_last), ..., (grad_W_first, grad_b_first)]
+        # Return as a 2-tuple so: grad_W, grad_b = model.backward(...)
+        # grad_W[i] and grad_b[i] correspond to layer (last - i)
+        return grad_W_list, grad_b_list
 
     # ------------------------------------------------------------------
     def update_weights(self):
