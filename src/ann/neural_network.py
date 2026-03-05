@@ -18,7 +18,6 @@ class NeuralNetwork:
     """
 
     def __init__(self, cli_args):
-        # --- Read every attribute defensively ---
         self.learning_rate = getattr(cli_args, 'learning_rate', 1e-3)
         self.loss_name     = getattr(cli_args, 'loss',          'cross_entropy')
         self.weight_decay  = getattr(cli_args, 'weight_decay',  0.0)
@@ -31,18 +30,21 @@ class NeuralNetwork:
         weight_init  = getattr(cli_args, 'weight_init', 'xavier')
         optimizer    = getattr(cli_args, 'optimizer',   'adam')
 
-        if len(hidden_sizes) < num_hidden:
-            raise ValueError(
-                f"--num_layers is {num_hidden} but only {len(hidden_sizes)} "
-                f"values given for --hidden_size."
-            )
+        # Normalise hidden_sizes: autograder may pass a single int
+        if isinstance(hidden_sizes, int):
+            hidden_sizes = [hidden_sizes] * num_hidden
+        else:
+            hidden_sizes = list(hidden_sizes)
+            # If fewer values than num_hidden, repeat the last value
+            while len(hidden_sizes) < num_hidden:
+                hidden_sizes.append(hidden_sizes[-1])
 
-        layer_dims = [input_dim] + list(hidden_sizes[:num_hidden]) + [output_dim]
+        layer_dims = [input_dim] + hidden_sizes[:num_hidden] + [output_dim]
 
         self.layers = []
         for i in range(len(layer_dims) - 1):
-            is_output  = (i == len(layer_dims) - 2)
-            layer_act  = 'softmax' if is_output else activation
+            is_output = (i == len(layer_dims) - 2)
+            layer_act = 'softmax' if is_output else activation
 
             layer = NeuralLayer(
                 in_features  = layer_dims[i],
@@ -110,13 +112,12 @@ class NeuralNetwork:
         Handles both new dict format and legacy list-of-dicts format.
         """
         data = np.load(path, allow_pickle=True)
-        if data.ndim == 0:          # dict was wrapped in 0-d object array
+        if data.ndim == 0:
             data = data.item()
 
         if isinstance(data, dict):
             self.set_weights(data)
         else:
-            # Legacy: array of {"W": ..., "b": ...}
             if len(data) != len(self.layers):
                 raise ValueError("Checkpoint layer count does not match architecture.")
             for layer, wb in zip(self.layers, data):

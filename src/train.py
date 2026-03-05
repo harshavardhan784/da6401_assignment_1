@@ -48,6 +48,7 @@ def parse_arguments():
     parser.add_argument("--log_neuron_grads", action="store_true")
     parser.add_argument("--zero_init",        action="store_true")
 
+    # Points to models/ folder at repo root (relative to src/)
     parser.add_argument("--model_dir", type=str, default="../models")
     return parser.parse_args()
 
@@ -158,7 +159,7 @@ def main():
     X_val_sample = X_val[:500]
 
     print("Building model...")
-    model = NeuralNetwork(args)   # pass the whole Namespace — always
+    model = NeuralNetwork(args)
 
     if args.zero_init:
         print("[zero_init] All weights and biases set to 0.0")

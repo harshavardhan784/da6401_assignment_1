@@ -1,7 +1,7 @@
 """
 Inference Script — evaluate a trained model on the test set.
 Default args match the best saved model so the autograder only needs
-to supply --model_path.
+to supply --model_path (or rely on the default).
 """
 
 import argparse
@@ -16,7 +16,8 @@ from ann.objective_functions import compute_loss
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Run inference on test set')
 
-    parser.add_argument('--model_path', type=str, required=True,
+    # Default points to models/best_model.npy relative to src/
+    parser.add_argument('--model_path', type=str, default='../models/best_model.npy',
                         help='Path to saved model weights (.npy)')
 
     parser.add_argument('-d',   '--dataset',      type=str,   default='mnist',
@@ -44,7 +45,7 @@ def load_model(args):
     """Reconstruct NeuralNetwork from args and load saved weights."""
     args.input_dim  = 784
     args.output_dim = 10
-    model = NeuralNetwork(args)   # pass Namespace directly
+    model = NeuralNetwork(args)
     model.load(args.model_path)
     return model
 
