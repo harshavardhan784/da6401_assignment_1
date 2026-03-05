@@ -1,12 +1,6 @@
 """
 Main Training Script
-Supports all W&B logging required for Q2.3 – Q2.10:
-
-  --log_grad_norms    Q2.4  per-epoch ||grad_W|| for every hidden layer
-  --log_dead_neurons  Q2.5  fraction of dead neurons per hidden layer
-  --log_activations   Q2.5  activation histograms per hidden layer (wandb.Histogram)
-  --log_neuron_grads  Q2.9  per-neuron grad norms (first 50 iterations + per-epoch)
-  --zero_init         Q2.9  override weights/biases to 0 after construction
+Supports all W&B logging required for Q2.3 – Q2.10.
 """
 
 import argparse
@@ -24,7 +18,7 @@ from ann.optimizers import NAG
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a neural network")
 
-    # Core hyperparameters (match assignment CLI spec exactly)
+    # Core hyperparameters
     parser.add_argument("-d",  "--dataset",       type=str,   default="mnist",
                         choices=["mnist", "fashion_mnist"])
     parser.add_argument("-e",  "--epochs",         type=int,   default=10)
@@ -44,24 +38,18 @@ def parse_arguments():
                         choices=["random", "xavier"])
 
     # W&B
-    parser.add_argument("--wandb_project", type=str, default=None)
-    parser.add_argument("--wandb_entity",  type=str, default=None)
-    parser.add_argument("--run_name",      type=str, default=None)
+    parser.add_argument("-w_p", "--wandb_project", type=str, default=None)
+    parser.add_argument("--wandb_project",         type=str, default=None,
+                        dest="wandb_project")   # alias kept for backward compat
+    parser.add_argument("--wandb_entity",          type=str, default=None)
+    parser.add_argument("--run_name",              type=str, default=None)
 
     # Extra logging flags
-    # Q2.4
-    parser.add_argument("--log_grad_norms",   action="store_true",
-                        help="Log ||grad_W|| for each hidden layer (Q2.4)")
-    # Q2.5
-    parser.add_argument("--log_dead_neurons", action="store_true",
-                        help="Log dead-neuron fraction per hidden layer (Q2.5)")
-    parser.add_argument("--log_activations",  action="store_true",
-                        help="Log activation histograms per hidden layer (Q2.5)")
-    # Q2.9
-    parser.add_argument("--log_neuron_grads", action="store_true",
-                        help="Log per-neuron grad norms (first 50 iters + per epoch) (Q2.9)")
-    parser.add_argument("--zero_init",        action="store_true",
-                        help="Override weights/biases to 0 after construction (Q2.9)")
+    parser.add_argument("--log_grad_norms",   action="store_true")
+    parser.add_argument("--log_dead_neurons", action="store_true")
+    parser.add_argument("--log_activations",  action="store_true")
+    parser.add_argument("--log_neuron_grads", action="store_true")
+    parser.add_argument("--zero_init",        action="store_true")
 
     parser.add_argument("--model_dir", type=str, default="../models")
     return parser.parse_args()
@@ -91,11 +79,6 @@ def save_config(args, val_acc, model_path, config_path):
 
 
 def _log_neuron_grad_iter(model, step, wandb, run):
-    """
-    Q2.9 — Log per-neuron grad norms for first 5 neurons of every hidden layer.
-    Called at every iteration for the first 50 iterations so the symmetry
-    (or lack thereof) is clearly visible in the W&B line plot.
-    """
     log = {"global_step": step}
     for li, layer in enumerate(model.layers[:-1]):
         if layer.grad_W is None:
@@ -110,11 +93,6 @@ def _log_neuron_grad_iter(model, step, wandb, run):
 
 def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
                args, wandb, run, X_val_sample):
-    """
-    Assemble the per-epoch W&B dict covering:
-      basic metrics | grad norms (Q2.4) | dead neurons + histograms (Q2.5)
-      | per-epoch neuron grads (Q2.9)
-    """
     log = {
         "epoch":      epoch + 1,
         "train_loss": float(avg_loss),
@@ -123,24 +101,20 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
         "val_acc":    float(val_acc),
     }
 
-    # Q2.4 — gradient norm per hidden layer
     if args.log_grad_norms:
         for li, layer in enumerate(model.layers[:-1]):
             if layer.grad_W is not None:
                 log[f"grad_norm_layer{li+1}"] = float(np.linalg.norm(layer.grad_W))
 
-    # Q2.5 — dead-neuron fraction + activation histograms
     if args.log_dead_neurons or args.log_activations:
-        _ = model.forward(X_val_sample)          # clean forward pass on fixed sample
+        _ = model.forward(X_val_sample)
         for li, layer in enumerate(model.layers[:-1]):
             if args.log_dead_neurons:
-                # Dead neuron: outputs exactly 0 for ReLU; near-0 for others
                 dead_frac = float(np.mean(layer.A <= 0))
                 log[f"dead_neuron_frac_L{li+1}"] = dead_frac
             if args.log_activations:
                 log[f"activations_L{li+1}"] = wandb.Histogram(layer.A.flatten())
 
-    # Q2.9 — per-epoch summary of neuron grads (supplements first-50-iter logs)
     if args.log_neuron_grads:
         for li, layer in enumerate(model.layers[:-1]):
             if layer.grad_W is not None:
@@ -153,13 +127,12 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
     run.log(log)
 
 
-
 def main():
     args = parse_arguments()
     args.input_dim  = 784
     args.output_dim = 10
 
-    # W&B — conditional import so script works without wandb
+    # -w_p / --wandb_project both land in args.wandb_project
     use_wandb = args.wandb_project is not None
     wandb = None
     run   = None
@@ -186,16 +159,13 @@ def main():
             },
         )
 
-    # Data
     print(f"Loading dataset: {args.dataset}")
     X_train, y_train, X_val, y_val, X_test, y_test = load_data(args.dataset)
-    X_val_sample = X_val[:500]    # fixed mini-batch for dead-neuron logging
+    X_val_sample = X_val[:500]
 
-    # Model
     print("Building model...")
     model = NeuralNetwork(args)
 
-    # Q2.9 — zero-init override
     if args.zero_init:
         print("[zero_init] All weights and biases set to 0.0")
         for layer in model.layers:
@@ -205,13 +175,12 @@ def main():
     is_nag       = isinstance(model.optimizer, NAG)
     n_samples    = X_train.shape[0]
     best_val_acc = -1.0
-    global_step  = 0          # total mini-batch iterations across all epochs
+    global_step  = 0
 
     create_dir(args.model_dir)
     model_path  = os.path.join(args.model_dir, "best_model.npy")
     config_path = os.path.join(args.model_dir, "best_config.json")
 
-    # Training loop
     print("Starting training...")
     for epoch in range(args.epochs):
         idx  = np.random.permutation(n_samples)
@@ -241,13 +210,9 @@ def main():
             num_batches += 1
             global_step += 1
 
-            # Q2.9 — per-iteration neuron grads for the FIRST 50 iterations only.
-            # This tight window is what shows the symmetry (or lack of) clearly
-            # before the gradients have any chance to diverge from training.
             if use_wandb and args.log_neuron_grads and global_step <= 50:
                 _log_neuron_grad_iter(model, global_step, wandb, run)
 
-        # Epoch metrics
         avg_loss  = epoch_loss / num_batches
         val_acc   = model.evaluate(X_val, y_val)
         train_acc = model.evaluate(X_tr,  y_tr)
@@ -266,13 +231,12 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            model.save(model_path)
+            model.save(model_path)          # uses get_weights() format internally
             save_config(args, best_val_acc, model_path, config_path)
             print("  ← new best!")
         else:
             print()
 
-    # Final evaluation
     test_acc = model.evaluate(X_test, y_test)
     print(f"\nBest val accuracy : {best_val_acc:.4f}")
     print(f"Test  accuracy    : {test_acc:.4f}")
