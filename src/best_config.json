@@ -13,9 +13,9 @@
   "optimizer": "adam",
   "learning_rate": 0.001,
   "batch_size": 32,
-  "epochs": 10,
+  "epochs": 15,
   "loss": "cross_entropy",
   "weight_decay": 0.0,
-  "best_val_acc": 0.9715,
-  "model_path": "../models\\best_model.npy"
+  "best_val_acc": 0.9735,
+  "model_path": ".\\best_model.npy"
 }
