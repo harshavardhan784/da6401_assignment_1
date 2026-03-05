@@ -1,9 +1,6 @@
 """
-Main Training Script
-Supports all W&B logging required for Q2.3 – Q2.10.
-
-Important: model.forward() returns RAW LOGITS.
-           Softmax is applied via model._forward_with_softmax() for loss/eval.
+Main Training Script — saves best_model.npy into the same directory as
+this script (src/) so the autograder always finds src/best_model.npy.
 """
 
 import argparse
@@ -17,6 +14,10 @@ from ann.neural_network import NeuralNetwork
 from ann.objective_functions import compute_loss
 from ann.optimizers import NAG
 from ann.activations import softmax
+
+
+# Directory containing this file (src/) — model always saves here
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def parse_arguments():
@@ -50,8 +51,8 @@ def parse_arguments():
     parser.add_argument("--log_neuron_grads", action="store_true")
     parser.add_argument("--zero_init",        action="store_true")
 
-    # Save directly into src/ so autograder finds src/best_model.npy
-    parser.add_argument("--model_dir", type=str, default=".")
+    # Default saves next to this script (src/best_model.npy)
+    parser.add_argument("--model_dir", type=str, default=_SCRIPT_DIR)
     return parser.parse_args()
 
 
@@ -100,12 +101,10 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
         "train_acc":  float(train_acc),
         "val_acc":    float(val_acc),
     }
-
     if args.log_grad_norms:
         for li, layer in enumerate(model.layers[:-1]):
             if layer.grad_W is not None:
                 log[f"grad_norm_layer{li+1}"] = float(np.linalg.norm(layer.grad_W))
-
     if args.log_dead_neurons or args.log_activations:
         _ = model.forward(X_val_sample)
         for li, layer in enumerate(model.layers[:-1]):
@@ -113,7 +112,6 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
                 log[f"dead_neuron_frac_L{li+1}"] = float(np.mean(layer.A <= 0))
             if args.log_activations:
                 log[f"activations_L{li+1}"] = wandb.Histogram(layer.A.flatten())
-
     if args.log_neuron_grads:
         for li, layer in enumerate(model.layers[:-1]):
             if layer.grad_W is not None:
@@ -131,28 +129,20 @@ def main():
     args.output_dim = 10
 
     use_wandb = args.wandb_project is not None
-    wandb = None
-    run   = None
+    wandb = run = None
     if use_wandb:
         import wandb as _wandb
         wandb = _wandb
         run = wandb.init(
-            project = args.wandb_project,
-            entity  = args.wandb_entity,
-            name    = args.run_name,
-            config  = {
-                "dataset":       args.dataset,
-                "epochs":        args.epochs,
-                "batch_size":    args.batch_size,
-                "loss":          args.loss,
-                "optimizer":     args.optimizer,
-                "learning_rate": args.learning_rate,
-                "weight_decay":  args.weight_decay,
-                "num_layers":    args.num_layers,
-                "hidden_size":   args.hidden_size,
-                "activation":    args.activation,
-                "weight_init":   args.weight_init,
-                "zero_init":     args.zero_init,
+            project=args.wandb_project, entity=args.wandb_entity,
+            name=args.run_name,
+            config={
+                "dataset": args.dataset, "epochs": args.epochs,
+                "batch_size": args.batch_size, "loss": args.loss,
+                "optimizer": args.optimizer, "learning_rate": args.learning_rate,
+                "weight_decay": args.weight_decay, "num_layers": args.num_layers,
+                "hidden_size": args.hidden_size, "activation": args.activation,
+                "weight_init": args.weight_init, "zero_init": args.zero_init,
             },
         )
 
@@ -178,7 +168,9 @@ def main():
     model_path  = os.path.join(args.model_dir, "best_model.npy")
     config_path = os.path.join(args.model_dir, "best_config.json")
 
+    print(f"Model will be saved to: {model_path}")
     print("Starting training...")
+
     for epoch in range(args.epochs):
         idx  = np.random.permutation(n_samples)
         X_tr = X_train[idx]
@@ -215,8 +207,7 @@ def main():
         avg_loss  = epoch_loss / num_batches
         val_acc   = model.evaluate(X_val, y_val)
         train_acc = model.evaluate(X_tr,  y_tr)
-        val_probs = softmax(model.forward(X_val))
-        val_loss  = compute_loss(y_val, val_probs, args.loss)
+        val_loss  = compute_loss(y_val, softmax(model.forward(X_val)), args.loss)
 
         print(
             f"Epoch {epoch+1:>3}/{args.epochs} | "

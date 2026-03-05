@@ -1,15 +1,13 @@
 """
 Main Neural Network Model
-Orchestrates forward pass, backward pass, weight updates, training loop,
-and evaluation.
 
-Key contract with autograder
------------------------------
-forward()  → returns RAW LOGITS (Z of output layer), NOT softmax probabilities.
-             Softmax is only applied internally during loss computation.
-backward() → returns (grad_W, grad_b) of the FIRST layer (input layer gradients),
-             which is what the autograder unpacks as:
-             grad_W, grad_b = model.backward(y_true, y_pred)
+Key contracts with autograder
+------------------------------
+forward()  → RAW LOGITS (Z of output layer, no softmax).
+backward() → (grad_W, grad_b) of the LAST (output) layer.
+             Autograder does: grad_W, grad_b = model.backward(y_true, y_pred)
+             and checks grad_W.shape == (hidden_size, output_dim).
+             All layer.grad_W / layer.grad_b are also populated for inspection.
 """
 import numpy as np
 from ann.neural_layer import NeuralLayer
@@ -52,8 +50,6 @@ class NeuralNetwork:
         self.layers = []
         for i in range(len(layer_dims) - 1):
             is_output = (i == len(layer_dims) - 2)
-            # Output layer uses NO activation here — we return raw Z (logits).
-            # Softmax is applied separately only when needed (loss, evaluate).
             layer_act = 'linear' if is_output else self._activation
 
             layer = NeuralLayer(
@@ -64,8 +60,6 @@ class NeuralNetwork:
                 weight_decay = self.weight_decay,
             )
 
-            # For cross-entropy backward, output layer needs softmax grad.
-            # We pass is_output_ce so NeuralLayer applies softmax inside backward.
             if is_output and self.loss_name == 'cross_entropy':
                 layer.is_output_ce = True
 
@@ -73,43 +67,34 @@ class NeuralNetwork:
 
     # ------------------------------------------------------------------
     def forward(self, X):
-        """
-        Forward pass. Returns RAW LOGITS (pre-softmax Z) from the output layer.
-        Softmax is NOT applied here — autograder expects logits.
-        """
+        """Returns RAW LOGITS — softmax is NOT applied."""
         A = X
         for layer in self.layers:
             A = layer.forward(A)
-        return A   # raw logits, shape (N, 10)
-
-    # ------------------------------------------------------------------
-    def _forward_with_softmax(self, X):
-        """Internal forward that applies softmax for loss/evaluate use."""
-        return softmax(self.forward(X))
+        return A
 
     # ------------------------------------------------------------------
     def backward(self, y_true, y_pred_logits):
         """
         Backpropagate through all layers.
-
-        y_pred_logits : raw logits from forward() — softmax applied here
-                        before computing loss gradient.
+        Populates layer.grad_W and layer.grad_b for every layer.
 
         Returns
         -------
-        (grad_W, grad_b) of the FIRST layer — this is what the autograder
-        unpacks:  grad_W, grad_b = model.backward(y_true, y_pred)
+        (grad_W, grad_b) of the LAST (output) layer.
+        Autograder unpacks: grad_W, grad_b = model.backward(y_true, y_pred)
+        and verifies grad_W.shape == (hidden_size, output_dim).
         """
-        # Apply softmax to get probabilities for loss gradient
+        # Apply softmax to logits before computing loss gradient
         y_pred_probs = softmax(y_pred_logits)
         dA = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
 
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
 
-        # Return gradients of the first (input) layer
-        first_layer = self.layers[0]
-        return first_layer.grad_W, first_layer.grad_b
+        # Return the output (last) layer's gradients
+        last_layer = self.layers[-1]
+        return last_layer.grad_W, last_layer.grad_b
 
     # ------------------------------------------------------------------
     def update_weights(self):
@@ -120,10 +105,9 @@ class NeuralNetwork:
     # ------------------------------------------------------------------
     def evaluate(self, X, y):
         """Return scalar accuracy. y must be one-hot encoded."""
-        logits      = self.forward(X)
-        probs       = softmax(logits)
+        probs       = softmax(self.forward(X))
         predictions = np.argmax(probs, axis=1)
-        true_labels = np.argmax(y, axis=1)
+        true_labels = np.argmax(y,     axis=1)
         return np.mean(predictions == true_labels)
 
     # ------------------------------------------------------------------
@@ -134,10 +118,7 @@ class NeuralNetwork:
 
     # ------------------------------------------------------------------
     def load(self, path):
-        """
-        Load weights from a .npy file.
-        Handles both new dict format and legacy list-of-dicts format.
-        """
+        """Load weights. Handles dict format and legacy list-of-dicts."""
         data = np.load(path, allow_pickle=True)
         if data.ndim == 0:
             data = data.item()
@@ -166,12 +147,12 @@ class NeuralNetwork:
     def set_weights(self, weight_dict):
         """
         Set weights from a {W0, b0, W1, b1, ...} dict.
-        Rebuilds layers if the dict encodes a different architecture.
+        Rebuilds layers if the dict encodes a different architecture
+        to prevent shape mismatches in the forward pass.
         """
         n_layers_in_dict = sum(1 for k in weight_dict if k.startswith('W'))
 
         if n_layers_in_dict != len(self.layers):
-            # Infer layer_dims from weight shapes and rebuild
             layer_dims = []
             for i in range(n_layers_in_dict):
                 W = weight_dict[f"W{i}"]
