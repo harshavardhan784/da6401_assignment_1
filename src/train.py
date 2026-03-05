@@ -18,33 +18,30 @@ from ann.optimizers import NAG
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a neural network")
 
-    # Core hyperparameters
-    parser.add_argument("-d",  "--dataset",       type=str,   default="mnist",
+    parser.add_argument("-d",   "--dataset",      type=str,   default="mnist",
                         choices=["mnist", "fashion_mnist"])
-    parser.add_argument("-e",  "--epochs",         type=int,   default=10)
-    parser.add_argument("-b",  "--batch_size",     type=int,   default=32)
-    parser.add_argument("-l",  "--loss",           type=str,   default="cross_entropy",
+    parser.add_argument("-e",   "--epochs",        type=int,   default=10)
+    parser.add_argument("-b",   "--batch_size",    type=int,   default=32)
+    parser.add_argument("-l",   "--loss",          type=str,   default="cross_entropy",
                         choices=["cross_entropy", "mse"])
-    parser.add_argument("-o",  "--optimizer",      type=str,   default="adam",
+    parser.add_argument("-o",   "--optimizer",     type=str,   default="adam",
                         choices=["sgd", "momentum", "nag", "rmsprop", "adam", "nadam"])
-    parser.add_argument("-lr", "--learning_rate",  type=float, default=1e-3)
-    parser.add_argument("-wd", "--weight_decay",   type=float, default=0.0)
-    parser.add_argument("-nhl","--num_layers",     type=int,   default=3)
-    parser.add_argument("-sz", "--hidden_size",    type=int,   nargs="+",
+    parser.add_argument("-lr",  "--learning_rate", type=float, default=1e-3)
+    parser.add_argument("-wd",  "--weight_decay",  type=float, default=0.0)
+    parser.add_argument("-nhl", "--num_layers",    type=int,   default=3)
+    parser.add_argument("-sz",  "--hidden_size",   type=int,   nargs="+",
                         default=[128, 128, 128])
-    parser.add_argument("-a",  "--activation",     type=str,   default="relu",
+    parser.add_argument("-a",   "--activation",    type=str,   default="relu",
                         choices=["relu", "sigmoid", "tanh"])
-    parser.add_argument("-w_i","--weight_init",    type=str,   default="xavier",
+    parser.add_argument("-w_i", "--weight_init",   type=str,   default="xavier",
                         choices=["random", "xavier"])
 
-    # W&B
-    parser.add_argument("-w_p", "--wandb_project", type=str, default=None)
-    parser.add_argument("--wandb_project",         type=str, default=None,
-                        dest="wandb_project")   # alias kept for backward compat
-    parser.add_argument("--wandb_entity",          type=str, default=None)
-    parser.add_argument("--run_name",              type=str, default=None)
+    # W&B — single declaration, accessible as -w_p or --wandb_project
+    parser.add_argument("-w_p", "--wandb_project", type=str,   default=None)
+    parser.add_argument("--wandb_entity",          type=str,   default=None)
+    parser.add_argument("--run_name",              type=str,   default=None)
 
-    # Extra logging flags
+    # Extra diagnostic logging flags
     parser.add_argument("--log_grad_norms",   action="store_true")
     parser.add_argument("--log_dead_neurons", action="store_true")
     parser.add_argument("--log_activations",  action="store_true")
@@ -110,8 +107,7 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
         _ = model.forward(X_val_sample)
         for li, layer in enumerate(model.layers[:-1]):
             if args.log_dead_neurons:
-                dead_frac = float(np.mean(layer.A <= 0))
-                log[f"dead_neuron_frac_L{li+1}"] = dead_frac
+                log[f"dead_neuron_frac_L{li+1}"] = float(np.mean(layer.A <= 0))
             if args.log_activations:
                 log[f"activations_L{li+1}"] = wandb.Histogram(layer.A.flatten())
 
@@ -123,7 +119,6 @@ def _log_epoch(model, epoch, avg_loss, val_loss, train_acc, val_acc,
                     log[f"neuron_grad_L{li+1}_N{ni+1}"] = float(
                         np.linalg.norm(layer.grad_W[:, ni])
                     )
-
     run.log(log)
 
 
@@ -132,7 +127,6 @@ def main():
     args.input_dim  = 784
     args.output_dim = 10
 
-    # -w_p / --wandb_project both land in args.wandb_project
     use_wandb = args.wandb_project is not None
     wandb = None
     run   = None
@@ -164,7 +158,7 @@ def main():
     X_val_sample = X_val[:500]
 
     print("Building model...")
-    model = NeuralNetwork(args)
+    model = NeuralNetwork(args)   # pass the whole Namespace — always
 
     if args.zero_init:
         print("[zero_init] All weights and biases set to 0.0")
@@ -231,7 +225,7 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            model.save(model_path)          # uses get_weights() format internally
+            model.save(model_path)
             save_config(args, best_val_acc, model_path, config_path)
             print("  ← new best!")
         else:
