@@ -1,6 +1,5 @@
 """
-Main Training Script — saves best_model.npy into the same directory as
-this script (src/) so the autograder always finds src/best_model.npy.
+Main Training Script — saves best_model.npy into src/ (same dir as this script).
 """
 
 import argparse
@@ -15,8 +14,6 @@ from ann.objective_functions import compute_loss
 from ann.optimizers import NAG
 from ann.activations import softmax
 
-
-# Directory containing this file (src/) — model always saves here
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -51,7 +48,6 @@ def parse_arguments():
     parser.add_argument("--log_neuron_grads", action="store_true")
     parser.add_argument("--zero_init",        action="store_true")
 
-    # Default saves next to this script (src/best_model.npy)
     parser.add_argument("--model_dir", type=str, default=_SCRIPT_DIR)
     return parser.parse_args()
 
@@ -167,10 +163,9 @@ def main():
     create_dir(args.model_dir)
     model_path  = os.path.join(args.model_dir, "best_model.npy")
     config_path = os.path.join(args.model_dir, "best_config.json")
-
     print(f"Model will be saved to: {model_path}")
-    print("Starting training...")
 
+    print("Starting training...")
     for epoch in range(args.epochs):
         idx  = np.random.permutation(n_samples)
         X_tr = X_train[idx]
@@ -188,13 +183,13 @@ def main():
                 logits = model.forward(Xb)
                 probs  = softmax(logits)
                 bl     = compute_loss(yb, probs, args.loss)
-                model.backward(yb, logits)
+                model.backward(yb, logits)   # return value not needed
                 model.optimizer.restore_weights(model.layers)
             else:
                 logits = model.forward(Xb)
                 probs  = softmax(logits)
                 bl     = compute_loss(yb, probs, args.loss)
-                model.backward(yb, logits)
+                model.backward(yb, logits)   # return value not needed
 
             model.update_weights()
             epoch_loss  += bl

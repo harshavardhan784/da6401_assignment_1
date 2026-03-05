@@ -4,10 +4,14 @@ Main Neural Network Model
 Key contracts with autograder
 ------------------------------
 forward()  → RAW LOGITS (Z of output layer, no softmax).
-backward() → (grad_W, grad_b) of the LAST (output) layer.
-             Autograder does: grad_W, grad_b = model.backward(y_true, y_pred)
-             and checks grad_W.shape == (hidden_size, output_dim).
-             All layer.grad_W / layer.grad_b are also populated for inspection.
+
+backward() → list of (grad_W, grad_b) tuples, ordered from LAST layer
+             to FIRST layer (as the assignment spec requires).
+             The autograder searches this list for a grad_W with the
+             expected shape, e.g. (2, 10) for the output layer of a
+             network with 2 hidden neurons.
+             All layer.grad_W / layer.grad_b attributes are also
+             populated for direct inspection.
 """
 import numpy as np
 from ann.neural_layer import NeuralLayer
@@ -81,20 +85,19 @@ class NeuralNetwork:
 
         Returns
         -------
-        (grad_W, grad_b) of the LAST (output) layer.
-        Autograder unpacks: grad_W, grad_b = model.backward(y_true, y_pred)
-        and verifies grad_W.shape == (hidden_size, output_dim).
+        List of (grad_W, grad_b) tuples ordered from LAST layer to FIRST.
+        The autograder searches this list for a grad_W matching the
+        expected shape (e.g. (2,10) for a net with 2 hidden neurons).
         """
-        # Apply softmax to logits before computing loss gradient
         y_pred_probs = softmax(y_pred_logits)
         dA = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
 
+        grads = []
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
+            grads.append((layer.grad_W, layer.grad_b))
 
-        # Return the output (last) layer's gradients
-        last_layer = self.layers[-1]
-        return last_layer.grad_W, last_layer.grad_b
+        return grads   # [(grad_W_last, grad_b_last), ..., (grad_W_first, grad_b_first)]
 
     # ------------------------------------------------------------------
     def update_weights(self):
@@ -147,8 +150,7 @@ class NeuralNetwork:
     def set_weights(self, weight_dict):
         """
         Set weights from a {W0, b0, W1, b1, ...} dict.
-        Rebuilds layers if the dict encodes a different architecture
-        to prevent shape mismatches in the forward pass.
+        Rebuilds layers if the dict encodes a different architecture.
         """
         n_layers_in_dict = sum(1 for k in weight_dict if k.startswith('W'))
 
