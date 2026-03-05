@@ -10,3 +10,4 @@ build/
 .wandb/
 wandb/
 notebooks/.ipynb_checkpoints/
+__pycache__
