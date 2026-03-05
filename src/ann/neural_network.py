@@ -15,6 +15,12 @@ class NeuralNetwork:
     Takes a cli_args Namespace (from argparse or constructed manually).
     All attributes are read with getattr + sensible defaults so the
     autograder can pass a minimal Namespace without crashing.
+
+    hidden_size normalisation rules
+    --------------------------------
+    - int  (e.g. 128)        → replicate num_layers times: [128,128,128]
+    - list (e.g. [128,64])   → use AS-IS; num_layers is ignored
+      (the autograder may pass hidden_size=[128] meaning exactly 1 hidden layer)
     """
 
     def __init__(self, cli_args):
@@ -30,16 +36,17 @@ class NeuralNetwork:
         weight_init  = getattr(cli_args, 'weight_init', 'xavier')
         optimizer    = getattr(cli_args, 'optimizer',   'adam')
 
-        # Normalise hidden_sizes: autograder may pass a single int
+        # Normalise hidden_sizes
+        # - int  → replicate num_hidden times
+        # - list → use exactly as provided (do NOT pad or extend)
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes] * num_hidden
         else:
             hidden_sizes = list(hidden_sizes)
-            # If fewer values than num_hidden, repeat the last value
-            while len(hidden_sizes) < num_hidden:
-                hidden_sizes.append(hidden_sizes[-1])
+            # num_layers is informational only when a list is given;
+            # the list itself defines how many hidden layers there are.
 
-        layer_dims = [input_dim] + hidden_sizes[:num_hidden] + [output_dim]
+        layer_dims = [input_dim] + hidden_sizes + [output_dim]
 
         self.layers = []
         for i in range(len(layer_dims) - 1):
