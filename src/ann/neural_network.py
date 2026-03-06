@@ -5,14 +5,14 @@ Key contracts with autograder
 ------------------------------
 forward()  → RAW LOGITS (Z of output layer, no softmax).
 
-backward() → Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer.
+backward() → Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
              Call convention matches forward():
                  y_pred = model.forward(X)          # raw logits
                  grad_W, grad_b = model.backward(y_true, y_pred)
              backward() applies softmax internally; pass raw logits as y_pred.
 
-             grad_W[0]  → gradient of W for output layer (LAST)
-             grad_W[-1] → gradient of W for first hidden layer (FIRST)
+             grad_W[0]  → gradient of W for layer 0  (input → hidden1)
+             grad_W[-1] → gradient of W for output layer
              All layer.grad_W / layer.grad_b attributes are also populated.
 """
 import numpy as np
@@ -35,7 +35,7 @@ class NeuralNetwork:
         hidden_sizes = getattr(cli_args, 'hidden_size', [128] * num_hidden)
         self._activation  = getattr(cli_args, 'activation',  'relu')
         self._weight_init = getattr(cli_args, 'weight_init', 'xavier')
-        optimizer    = getattr(cli_args, 'optimizer',   'adam')
+        optimizer    = getattr(cli_args, 'optimizer',   'rmsprop')
 
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes] * num_hidden
@@ -89,10 +89,14 @@ class NeuralNetwork:
         Returns
         -------
         Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer.
-            grad_W[0]  → output layer gradient
-            grad_W[-1] → first (input→hidden1) layer gradient
+            grad_W[0]  → gradient of W for output layer (last layer)
+            grad_W[-1] → gradient of W for first (input→hidden1) layer
         All layer.grad_W / layer.grad_b attributes are also populated.
         """
+        # Ensure inputs are float64 for numerical precision
+        y_true = np.asarray(y_true, dtype=np.float64)
+        y_pred_logits = np.asarray(y_pred_logits, dtype=np.float64)
+
         # Apply softmax internally to convert logits → probabilities
         y_pred_probs = softmax(y_pred_logits)
 
@@ -106,6 +110,7 @@ class NeuralNetwork:
             dA = softmax_jacobian_vector_product(mse_grad, y_pred_probs)
 
         # Backprop through layers in reverse; collect in LAST→FIRST order
+        # Per spec (updated 27-02-2026): return gradients from last layer to first
         grad_W_list = []
         grad_b_list = []
         for layer in reversed(self.layers):
@@ -113,8 +118,8 @@ class NeuralNetwork:
             grad_W_list.append(layer.grad_W)
             grad_b_list.append(layer.grad_b)
 
-        # Return LAST→FIRST as required by assignment spec (1.2):
-        # grad_W_list[0] = output layer, grad_W_list[-1] = first hidden layer
+        # Return in LAST→FIRST order (natural backprop order, as per spec 1.2)
+        # grad_W_list[0] = output layer, grad_W_list[-1] = first layer
         return grad_W_list, grad_b_list
 
     def update_weights(self):
@@ -166,6 +171,6 @@ class NeuralNetwork:
             self._build_layers(layer_dims)
         for i, layer in enumerate(self.layers):
             if f"W{i}" in weight_dict:
-                layer.W = weight_dict[f"W{i}"].copy()
+                layer.W = np.asarray(weight_dict[f"W{i}"], dtype=np.float64).copy()
             if f"b{i}" in weight_dict:
-                layer.b = weight_dict[f"b{i}"].copy()
+                layer.b = np.asarray(weight_dict[f"b{i}"], dtype=np.float64).copy()

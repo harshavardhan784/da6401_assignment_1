@@ -52,7 +52,7 @@ def parse_arguments():
     parser.add_argument("-a",   "--activation",    type=str,          default="relu",
                         choices=["relu", "sigmoid", "tanh"])
     parser.add_argument("-w_i", "--weight_init",   type=str,          default="xavier")
-    parser.add_argument("-o",   "--optimizer",     type=str,          default="adam")
+    parser.add_argument("-o",   "--optimizer",     type=str,          default="rmsprop")
     parser.add_argument("-lr",  "--learning_rate", type=float,        default=1e-3)
     parser.add_argument("-wd",  "--weight_decay",  type=float,        default=0.0)
     parser.add_argument("-l",   "--loss",          type=str,          default="cross_entropy",

@@ -22,7 +22,7 @@ SWEEP_CONFIG = {
         "num_layers":   {"values": [2, 3, 4]},
         "hidden_size":  {"values": [64, 128]},
         "activation":   {"values": ["relu", "sigmoid", "tanh"]},
-        "optimizer":    {"values": ["sgd", "momentum", "nag", "rmsprop", "adam", "nadam"]},
+        "optimizer":    {"values": ["sgd", "momentum", "nag", "rmsprop"]},
         "weight_decay": {"distribution": "log_uniform_values", "min": 1e-5, "max": 1e-2},
         "weight_init":  {"values": ["xavier"]},
         "loss":         {"values": ["cross_entropy"]},
