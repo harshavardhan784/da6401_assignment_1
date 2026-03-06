@@ -84,15 +84,17 @@ class NeuralNetwork:
         ----------
         y_true         : one-hot labels  (N, C)
         y_pred_logits  : RAW LOGITS from forward()  (N, C).
-                         softmax is applied internally.
+                         softmax is applied internally here.
 
         Returns
         -------
-        Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
-        grad_W[0] = first layer, grad_W[-1] = output layer.
-        All layer.grad_W / layer.grad_b are also populated.
+        Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer
+        (per spec Updated 27-02-2026).
+            grad_W[0]  → output layer gradient
+            grad_W[-1] → first (input→hidden1) layer gradient
+        All layer.grad_W / layer.grad_b attributes are also populated.
         """
-        # Softmax applied internally
+        # Apply softmax internally to convert logits → probabilities
         y_pred_probs = softmax(y_pred_logits)
 
         # For CE:  combined CE+softmax gradient = probs - y_true (correct dL/dZ_out)
@@ -104,15 +106,16 @@ class NeuralNetwork:
             mse_grad = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
             dA = softmax_jacobian_vector_product(mse_grad, y_pred_probs)
 
-        grad_W_list_rev = []
-        grad_b_list_rev = []
+        # Backprop reversed; collect gradients naturally in LAST→FIRST order
+        grad_W_list = []
+        grad_b_list = []
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
-            grad_W_list_rev.append(layer.grad_W)
-            grad_b_list_rev.append(layer.grad_b)
+            grad_W_list.append(layer.grad_W)
+            grad_b_list.append(layer.grad_b)
 
-        # Return FIRST→LAST order
-        return grad_W_list_rev[::-1], grad_b_list_rev[::-1]
+        # grad_W_list[0] = output layer, grad_W_list[-1] = first layer (LAST→FIRST)
+        return grad_W_list, grad_b_list
 
     def update_weights(self):
         """Apply the optimizer step to every layer."""
