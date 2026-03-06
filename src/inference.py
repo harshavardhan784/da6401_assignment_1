@@ -44,7 +44,18 @@ def load_model(args):
     args.input_dim  = 784
     args.output_dim = 10
     model = NeuralNetwork(args)
-    model.load(args.model_path)
+    # Load using the approach specified in assignment instructions (1.2):
+    # np.load(...).item() -> dict -> model.set_weights(dict)
+    data = np.load(args.model_path, allow_pickle=True)
+    if data.ndim == 0:
+        weight_dict = data.item()
+    else:
+        # Legacy list-of-dicts format
+        weight_dict = None
+    if isinstance(weight_dict, dict):
+        model.set_weights(weight_dict)
+    else:
+        model.load(args.model_path)
     return model
 
 

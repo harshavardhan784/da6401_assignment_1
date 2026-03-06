@@ -17,5 +17,5 @@
   "loss": "cross_entropy",
   "weight_decay": 0.0,
   "best_val_acc": 0.977667,
-  "model_path": "D:\\IITM\\DL\\DL_A1\\da6401_assignment_1\\src\\best_model.npy"
+  "model_path": "best_model.npy"
 }

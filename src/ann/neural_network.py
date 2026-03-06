@@ -5,14 +5,14 @@ Key contracts with autograder
 ------------------------------
 forward()  → RAW LOGITS (Z of output layer, no softmax).
 
-backward() → Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
+backward() → Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer.
              Call convention matches forward():
                  y_pred = model.forward(X)          # raw logits
                  grad_W, grad_b = model.backward(y_true, y_pred)
              backward() applies softmax internally; pass raw logits as y_pred.
 
-             grad_W[0]  → gradient of W for layer 0  (input → hidden1)  FIRST
-             grad_W[-1] → gradient of W for output layer                 LAST
+             grad_W[0]  → gradient of W for output layer (LAST)
+             grad_W[-1] → gradient of W for first hidden layer (FIRST)
              All layer.grad_W / layer.grad_b attributes are also populated.
 """
 import numpy as np
@@ -88,9 +88,9 @@ class NeuralNetwork:
 
         Returns
         -------
-        Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer:
-            grad_W[0]  → first (input→hidden1) layer gradient
-            grad_W[-1] → output layer gradient
+        Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer.
+            grad_W[0]  → output layer gradient
+            grad_W[-1] → first (input→hidden1) layer gradient
         All layer.grad_W / layer.grad_b attributes are also populated.
         """
         # Apply softmax internally to convert logits → probabilities
@@ -105,7 +105,7 @@ class NeuralNetwork:
             mse_grad = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
             dA = softmax_jacobian_vector_product(mse_grad, y_pred_probs)
 
-        # Backprop reversed; collect gradients in LAST→FIRST order internally
+        # Backprop through layers in reverse; collect in LAST→FIRST order
         grad_W_list = []
         grad_b_list = []
         for layer in reversed(self.layers):
@@ -113,12 +113,8 @@ class NeuralNetwork:
             grad_W_list.append(layer.grad_W)
             grad_b_list.append(layer.grad_b)
 
-        # Reverse to FIRST→LAST order:
-        #   grad_W_list[0]  = first layer (input → hidden1)
-        #   grad_W_list[-1] = output layer
-        grad_W_list = grad_W_list[::-1]
-        grad_b_list = grad_b_list[::-1]
-
+        # Return LAST→FIRST as required by assignment spec (1.2):
+        # grad_W_list[0] = output layer, grad_W_list[-1] = first hidden layer
         return grad_W_list, grad_b_list
 
     def update_weights(self):

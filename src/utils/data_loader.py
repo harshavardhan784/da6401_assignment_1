@@ -1,7 +1,7 @@
 """
 Data Loading and Preprocessing
 Handles MNIST and Fashion-MNIST datasets
-Normalization: X / 255.0  (scale to [0, 1])
+Normalization: X / 255.0  (scale pixels to [0, 1])
 """
 
 import numpy as np
@@ -22,11 +22,6 @@ def flatten_images(X):
     return X.reshape(X.shape[0], -1).astype(np.float64)
 
 
-# Normalize pixel values to [0, 1]
-def normalize(X):
-    return X / 255.0
-
-
 # Data loader
 def load_data(dataset="mnist", val_split=0.1, seed=42):
     """
@@ -34,6 +29,7 @@ def load_data(dataset="mnist", val_split=0.1, seed=42):
         X_train, y_train
         X_val, y_val
         X_test, y_test
+    All X arrays are normalized to [0, 1] via /255.
     """
 
     set_seed(seed)
@@ -56,20 +52,20 @@ def load_data(dataset="mnist", val_split=0.1, seed=42):
     y_train_full_oh = one_hot_encode(y_train_full)
     y_test_oh = one_hot_encode(y_test)
 
-    # Train / Validation split (BEFORE normalization)
+    # Train / Validation split
     X_train, X_val, y_train, y_val = train_test_split(
         X_train_full,
         y_train_full_oh,
         test_size=val_split,
         random_state=seed,
         shuffle=True,
-        stratify=y_train_full  # use original labels
+        stratify=y_train_full
     )
 
-    # Normalize to [0, 1] using /255
-    X_train = normalize(X_train)
-    X_val   = normalize(X_val)
-    X_test  = normalize(X_test)
+    # Normalize pixels to [0, 1]
+    X_train = X_train / 255.0
+    X_val   = X_val   / 255.0
+    X_test  = X_test  / 255.0
 
     return X_train, y_train, X_val, y_val, X_test, y_test_oh
 
@@ -82,5 +78,4 @@ if __name__ == "__main__":
     print("Val:", X_val.shape, y_val.shape)
     print("Test:", X_test.shape, y_test.shape)
 
-    print("\nTrain mean:", np.mean(X_train))
-    print("Train std :", np.std(X_train))
+    print("\nTrain min/max:", X_train.min(), X_train.max())
