@@ -5,11 +5,12 @@ Key contracts with autograder
 ------------------------------
 forward()  → RAW LOGITS (Z of output layer, no softmax).
 
-backward() → list of (grad_W, grad_b) tuples, ordered from LAST layer
-             to FIRST layer (as the assignment spec requires).
-             The autograder searches this list for a grad_W with the
-             expected shape, e.g. (2, 10) for the output layer of a
-             network with 2 hidden neurons.
+backward() → list of (grad_W, grad_b) tuples, ordered from FIRST layer
+             to LAST layer.
+             Call convention:
+                 probs = softmax(model.forward(X))
+                 grad_W, grad_b = model.backward(y_true, probs)
+             y_pred argument must be PROBABILITIES (already softmaxed).
              All layer.grad_W / layer.grad_b attributes are also
              populated for direct inspection.
 """
@@ -17,7 +18,7 @@ import numpy as np
 from ann.neural_layer import NeuralLayer
 from ann.objective_functions import compute_loss, compute_loss_gradient
 from ann.optimizers import Optimizers
-from ann.activations import softmax
+from ann.activations import softmax, softmax_jacobian_vector_product
 
 
 class NeuralNetwork:
@@ -78,32 +79,51 @@ class NeuralNetwork:
         return A
 
     # ------------------------------------------------------------------
-    def backward(self, y_true, y_pred_logits):
+    def backward(self, y_true, y_pred_probs):
         """
         Backpropagate through all layers.
-        Populates layer.grad_W and layer.grad_b for every layer.
+
+        Parameters
+        ----------
+        y_true       : one-hot labels  (N, C)
+        y_pred_probs : SOFTMAX PROBABILITIES from forward pass (N, C).
+                       Call softmax(model.forward(X)) before passing here.
 
         Returns
         -------
         Tuple (grad_W_list, grad_b_list) where each list is ordered from
-        LAST layer to FIRST layer, enabling:
-            grad_W, grad_b = model.backward(y_true, y_pred)
-        The autograder can also search grad_W[i] for a specific shape.
-        All layer.grad_W / layer.grad_b attributes are also populated
-        for direct inspection.
+        FIRST layer to LAST layer:
+            grad_W[0]  → weights of layer 0  (input → hidden1)
+            grad_W[-1] → weights of output layer
+        All layer.grad_W / layer.grad_b attributes are also populated.
         """
-        y_pred_probs = softmax(y_pred_logits)
-        dA = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
+        # Compute dL/d(probs) — the loss gradient w.r.t. softmax output
+        dL_dprobs = compute_loss_gradient(
+            y_true, y_pred_probs, loss_name=self.loss_name
+        )
 
-        grad_W_list = []
-        grad_b_list = []
+        # For CE: dL/dZ_out = dL/dprobs (combined CE+softmax gradient already correct)
+        # For MSE: dL/dZ_out = softmax_jacobian @ dL/dprobs  (chain rule via Jacobian)
+        if self.loss_name == 'cross_entropy':
+            dA = dL_dprobs          # already the correct dL/dZ for output layer
+        else:
+            # Apply the softmax Jacobian-vector product to get dL/dZ_out
+            # This correctly propagates gradients through the external softmax
+            # that is NOT part of the output layer's own forward pass.
+            dA = softmax_jacobian_vector_product(dL_dprobs, y_pred_probs)
+
+        # Backprop through layers (last → first)
+        grad_W_list_reversed = []
+        grad_b_list_reversed = []
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
-            grad_W_list.append(layer.grad_W)
-            grad_b_list.append(layer.grad_b)
+            grad_W_list_reversed.append(layer.grad_W)
+            grad_b_list_reversed.append(layer.grad_b)
 
-        # Return as a 2-tuple so: grad_W, grad_b = model.backward(...)
-        # grad_W[i] and grad_b[i] correspond to layer (last - i)
+        # Reverse to return FIRST→LAST order
+        grad_W_list = grad_W_list_reversed[::-1]
+        grad_b_list = grad_b_list_reversed[::-1]
+
         return grad_W_list, grad_b_list
 
     # ------------------------------------------------------------------

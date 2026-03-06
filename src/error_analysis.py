@@ -25,6 +25,7 @@ import wandb
 
 from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
+from ann.activations import softmax
 
 
 FASHION_CLASS_NAMES = [
@@ -167,10 +168,10 @@ def main():
     model = NeuralNetwork(args)
     model.load(args.model_path)
 
-    # Inference 
+    # Inference — forward() returns logits; apply softmax to get probabilities
     print("Running inference...")
-    logits = model.forward(X_test)            # (N, 10) softmax probs
-    probs  = logits                            # output layer is softmax
+    logits = model.forward(X_test)
+    probs  = softmax(logits)       # FIX: was incorrectly: probs = logits
     y_pred_arr = np.argmax(probs, axis=1)
     y_true_arr = np.argmax(y_test,  axis=1)
 

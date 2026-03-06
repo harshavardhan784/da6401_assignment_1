@@ -19,6 +19,7 @@ from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
 from ann.objective_functions import compute_loss
 from ann.optimizers import NAG
+from ann.activations import softmax
 
 SWEEP_CONFIG = {
     "method": "bayes",
@@ -100,14 +101,16 @@ def sweep_agent_fn():
 
                 if is_nag:
                     model.optimizer.apply_lookahead(model.layers)
-                    yp = model.forward(Xb)
-                    bl = compute_loss(yb, yp, args.loss)
-                    model.backward(yb, yp)
+                    logits = model.forward(Xb)
+                    probs  = softmax(logits)
+                    bl     = compute_loss(yb, probs, args.loss)
+                    model.backward(yb, probs)   # pass PROBS
                     model.optimizer.restore_weights(model.layers)
                 else:
-                    yp = model.forward(Xb)
-                    bl = compute_loss(yb, yp, args.loss)
-                    model.backward(yb, yp)
+                    logits = model.forward(Xb)
+                    probs  = softmax(logits)
+                    bl     = compute_loss(yb, probs, args.loss)
+                    model.backward(yb, probs)   # pass PROBS
 
                 model.update_weights()
                 epoch_loss  += bl
@@ -116,7 +119,8 @@ def sweep_agent_fn():
             avg_loss  = epoch_loss / num_batches
             val_acc   = model.evaluate(X_val, y_val)
             train_acc = model.evaluate(X_tr, y_tr)
-            val_loss  = compute_loss(y_val, model.forward(X_val), args.loss)
+            val_probs = softmax(model.forward(X_val))
+            val_loss  = compute_loss(y_val, val_probs, args.loss)
 
             wandb.log({
                 "epoch":      epoch + 1,
