@@ -1,7 +1,7 @@
 """
 Data Loading and Preprocessing
 Handles MNIST and Fashion-MNIST datasets
-Leak-free normalization (train stats only)
+Normalization: X / 255.0  (scale to [0, 1])
 """
 
 import numpy as np
@@ -22,19 +22,9 @@ def flatten_images(X):
     return X.reshape(X.shape[0], -1).astype(np.float64)
 
 
-# Standardization using TRAIN stats
-def standardize(train, val, test):
-    mean = np.mean(train, axis=0)
-    std = np.std(train, axis=0)
-
-    # Avoid divide-by-zero
-    std = np.where(std < 1e-8, 1.0, std)
-
-    train = (train - mean) / std
-    val = (val - mean) / std
-    test = (test - mean) / std
-
-    return train, val, test, mean, std
+# Normalize pixel values to [0, 1]
+def normalize(X):
+    return X / 255.0
 
 
 # Data loader
@@ -46,8 +36,6 @@ def load_data(dataset="mnist", val_split=0.1, seed=42):
         X_test, y_test
     """
 
-    # np.random.seed(seed)
-    
     set_seed(seed)
 
     # Load dataset
@@ -78,10 +66,10 @@ def load_data(dataset="mnist", val_split=0.1, seed=42):
         stratify=y_train_full  # use original labels
     )
 
-    # Standardize using TRAIN stats only
-    X_train, X_val, X_test, mean, std = standardize(
-        X_train, X_val, X_test
-    )
+    # Normalize to [0, 1] using /255
+    X_train = normalize(X_train)
+    X_val   = normalize(X_val)
+    X_test  = normalize(X_test)
 
     return X_train, y_train, X_val, y_val, X_test, y_test_oh
 
