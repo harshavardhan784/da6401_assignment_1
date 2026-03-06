@@ -5,14 +5,15 @@ Key contracts with autograder
 ------------------------------
 forward()  → RAW LOGITS (Z of output layer, no softmax).
 
-backward() → list of (grad_W, grad_b) tuples, ordered from FIRST layer
-             to LAST layer.
-             Call convention:
-                 probs = softmax(model.forward(X))
-                 grad_W, grad_b = model.backward(y_true, probs)
-             y_pred argument must be PROBABILITIES (already softmaxed).
-             All layer.grad_W / layer.grad_b attributes are also
-             populated for direct inspection.
+backward() → Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
+             Call convention matches forward():
+                 y_pred = model.forward(X)          # raw logits
+                 grad_W, grad_b = model.backward(y_true, y_pred)
+             backward() applies softmax internally; pass raw logits as y_pred.
+
+             grad_W[0]  → gradient of W for layer 0  (input → hidden1)
+             grad_W[-1] → gradient of W for output layer
+             All layer.grad_W / layer.grad_b attributes are also populated.
 """
 import numpy as np
 from ann.neural_layer import NeuralLayer
@@ -49,9 +50,7 @@ class NeuralNetwork:
             learning_rate = self.learning_rate,
         )
 
-    # ------------------------------------------------------------------
     def _build_layers(self, layer_dims):
-        """Build self.layers from a list of dimensions."""
         self.layers = []
         for i in range(len(layer_dims) - 1):
             is_output = (i == len(layer_dims) - 2)
@@ -70,7 +69,6 @@ class NeuralNetwork:
 
             self.layers.append(layer)
 
-    # ------------------------------------------------------------------
     def forward(self, X):
         """Returns RAW LOGITS — softmax is NOT applied."""
         A = X
@@ -78,61 +76,49 @@ class NeuralNetwork:
             A = layer.forward(A)
         return A
 
-    # ------------------------------------------------------------------
-    def backward(self, y_true, y_pred_probs):
+    def backward(self, y_true, y_pred_logits):
         """
         Backpropagate through all layers.
 
         Parameters
         ----------
-        y_true       : one-hot labels  (N, C)
-        y_pred_probs : SOFTMAX PROBABILITIES from forward pass (N, C).
-                       Call softmax(model.forward(X)) before passing here.
+        y_true         : one-hot labels  (N, C)
+        y_pred_logits  : RAW LOGITS from forward()  (N, C).
+                         softmax is applied internally.
 
         Returns
         -------
-        Tuple (grad_W_list, grad_b_list) where each list is ordered from
-        FIRST layer to LAST layer:
-            grad_W[0]  → weights of layer 0  (input → hidden1)
-            grad_W[-1] → weights of output layer
-        All layer.grad_W / layer.grad_b attributes are also populated.
+        Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
+        grad_W[0] = first layer, grad_W[-1] = output layer.
+        All layer.grad_W / layer.grad_b are also populated.
         """
-        # Compute dL/d(probs) — the loss gradient w.r.t. softmax output
-        dL_dprobs = compute_loss_gradient(
-            y_true, y_pred_probs, loss_name=self.loss_name
-        )
+        # Softmax applied internally
+        y_pred_probs = softmax(y_pred_logits)
 
-        # For CE: dL/dZ_out = dL/dprobs (combined CE+softmax gradient already correct)
-        # For MSE: dL/dZ_out = softmax_jacobian @ dL/dprobs  (chain rule via Jacobian)
+        # For CE:  combined CE+softmax gradient = probs - y_true (correct dL/dZ_out)
+        # For MSE: need softmax Jacobian-vector product to get correct dL/dZ_out
+        #          because softmax is applied here (outside the linear output layer)
         if self.loss_name == 'cross_entropy':
-            dA = dL_dprobs          # already the correct dL/dZ for output layer
+            dA = compute_loss_gradient(y_true, y_pred_probs, loss_name='cross_entropy')
         else:
-            # Apply the softmax Jacobian-vector product to get dL/dZ_out
-            # This correctly propagates gradients through the external softmax
-            # that is NOT part of the output layer's own forward pass.
-            dA = softmax_jacobian_vector_product(dL_dprobs, y_pred_probs)
+            mse_grad = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
+            dA = softmax_jacobian_vector_product(mse_grad, y_pred_probs)
 
-        # Backprop through layers (last → first)
-        grad_W_list_reversed = []
-        grad_b_list_reversed = []
+        grad_W_list_rev = []
+        grad_b_list_rev = []
         for layer in reversed(self.layers):
             dA = layer.backward(dA)
-            grad_W_list_reversed.append(layer.grad_W)
-            grad_b_list_reversed.append(layer.grad_b)
+            grad_W_list_rev.append(layer.grad_W)
+            grad_b_list_rev.append(layer.grad_b)
 
-        # Reverse to return FIRST→LAST order
-        grad_W_list = grad_W_list_reversed[::-1]
-        grad_b_list = grad_b_list_reversed[::-1]
+        # Return FIRST→LAST order
+        return grad_W_list_rev[::-1], grad_b_list_rev[::-1]
 
-        return grad_W_list, grad_b_list
-
-    # ------------------------------------------------------------------
     def update_weights(self):
         """Apply the optimizer step to every layer."""
         for layer in self.layers:
             self.optimizer.update(layer)
 
-    # ------------------------------------------------------------------
     def evaluate(self, X, y):
         """Return scalar accuracy. y must be one-hot encoded."""
         probs       = softmax(self.forward(X))
@@ -140,19 +126,14 @@ class NeuralNetwork:
         true_labels = np.argmax(y,     axis=1)
         return np.mean(predictions == true_labels)
 
-    # ------------------------------------------------------------------
     def save(self, path):
-        """Save weights dict {W0, b0, W1, b1, ...} to a .npy file."""
         np.save(path, self.get_weights())
         print(f"Model saved to {path}")
 
-    # ------------------------------------------------------------------
     def load(self, path):
-        """Load weights. Handles dict format and legacy list-of-dicts."""
         data = np.load(path, allow_pickle=True)
         if data.ndim == 0:
             data = data.item()
-
         if isinstance(data, dict):
             self.set_weights(data)
         else:
@@ -161,26 +142,17 @@ class NeuralNetwork:
             for layer, wb in zip(self.layers, data):
                 layer.W = wb["W"]
                 layer.b = wb["b"]
-
         print(f"Model loaded from {path}")
 
-    # ------------------------------------------------------------------
     def get_weights(self):
-        """Return {W0, b0, W1, b1, ...} dict of all layer weights."""
         d = {}
         for i, layer in enumerate(self.layers):
             d[f"W{i}"] = layer.W.copy()
             d[f"b{i}"] = layer.b.copy()
         return d
 
-    # ------------------------------------------------------------------
     def set_weights(self, weight_dict):
-        """
-        Set weights from a {W0, b0, W1, b1, ...} dict.
-        Rebuilds layers if the dict encodes a different architecture.
-        """
         n_layers_in_dict = sum(1 for k in weight_dict if k.startswith('W'))
-
         if n_layers_in_dict != len(self.layers):
             layer_dims = []
             for i in range(n_layers_in_dict):
@@ -189,7 +161,6 @@ class NeuralNetwork:
                     layer_dims.append(W.shape[0])
                 layer_dims.append(W.shape[1])
             self._build_layers(layer_dims)
-
         for i, layer in enumerate(self.layers):
             if f"W{i}" in weight_dict:
                 layer.W = weight_dict[f"W{i}"].copy()

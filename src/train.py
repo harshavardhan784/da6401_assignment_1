@@ -183,13 +183,13 @@ def main():
                 logits = model.forward(Xb)
                 probs  = softmax(logits)
                 bl     = compute_loss(yb, probs, args.loss)
-                model.backward(yb, probs)   # pass PROBS, not logits
+                model.backward(yb, logits)   # pass LOGITS — backward applies softmax
                 model.optimizer.restore_weights(model.layers)
             else:
                 logits = model.forward(Xb)
                 probs  = softmax(logits)
                 bl     = compute_loss(yb, probs, args.loss)
-                model.backward(yb, probs)   # pass PROBS, not logits
+                model.backward(yb, logits)   # pass LOGITS — backward applies softmax
 
             model.update_weights()
             epoch_loss  += bl
@@ -202,8 +202,8 @@ def main():
         avg_loss  = epoch_loss / num_batches
         val_acc   = model.evaluate(X_val, y_val)
         train_acc = model.evaluate(X_tr,  y_tr)
-        val_probs = softmax(model.forward(X_val))
-        val_loss  = compute_loss(y_val, val_probs, args.loss)
+        val_logits = model.forward(X_val)
+        val_loss   = compute_loss(y_val, softmax(val_logits), args.loss)
 
         print(
             f"Epoch {epoch+1:>3}/{args.epochs} | "
