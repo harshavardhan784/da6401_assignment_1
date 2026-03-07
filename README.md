@@ -6,32 +6,40 @@
 
 ---
 
+## 🔗 Links
+
+| Resource | Link |
+|----------|------|
+| **W&B Report** | [View Report](https://wandb.ai/harshavardhan-govind-iit-madras/da6401-a1/reports/da6401-a1--VmlldzoxNjEyNjIzMw?accessToken=2w45fxedum2xzy2mwuc1erifnaau3jmw7e3lnryw58rfs2hn2ohpy9ny2wb0xu5g) |
+| **GitHub Repo** | [da6401_assignment_1](https://github.com/harshavardhan784/da6401_assignment_1.git) |
+
+---
+
 ## Project Structure
 
 ```
 da6401_assignment_1/
-├── models/                    # Saved weights and configs (auto-created)
+├── models/
 │   ├── best_model.npy
 │   └── best_config.json
-├── notebooks/                 # Optional Jupyter notebooks
 ├── src/
-│   ├── ann/                   # Core neural network module
+│   ├── ann/
 │   │   ├── __init__.py
-│   │   ├── activations.py     # ReLU, Sigmoid, Tanh, Softmax + derivatives
-│   │   ├── neural_layer.py    # Single fully-connected layer (forward + backward)
-│   │   ├── neural_network.py  # Full MLP: build, train, evaluate, save/load
-│   │   ├── objective_functions.py  # Cross-entropy and MSE losses + gradients
-│   │   └── optimizers.py      # SGD, Momentum, NAG, RMSProp, Adam, Nadam
+│   │   ├── activations.py
+│   │   ├── neural_layer.py
+│   │   ├── neural_network.py
+│   │   ├── objective_functions.py
+│   │   └── optimizers.py
 │   ├── utils/
-│   │   ├── __init__.py        # create_dir, set_seed, timestamp helpers
-│   │   └── data_loader.py     # MNIST / Fashion-MNIST loading, split, normalise
-│   ├── data_exploration.py    # Q2.1 — W&B data exploration script
-│   ├── error_analysis.py      # Q2.8 — confusion matrix + failure visualisation
-│   ├── inference.py           # Load model, evaluate, print metrics
-│   ├── sweep.py               # Q2.2 — Bayesian hyperparameter sweep (100 runs)
-│   └── train.py               # Main training script with all W&B logging flags
+│   │   ├── __init__.py
+│   │   └── data_loader.py
+│   ├── data_exploration.py
+│   ├── error_analysis.py
+│   ├── inference.py
+│   ├── sweep.py
+│   └── train.py
 ├── .gitignore
-├── commands.md                # All CLI commands for every experiment
+├── commands.md
 ├── README.md
 └── requirements.txt
 ```
@@ -41,11 +49,11 @@ da6401_assignment_1/
 ## Setup
 
 ```bash
-git clone ..
+git clone https://github.com/harshavardhan784/da6401_assignment_1.git
 cd da6401_assignment_1
 
 pip install -r requirements.txt
-wandb login          # paste key from wandb.ai/authorize
+wandb login
 
 cd src
 ```
@@ -68,11 +76,11 @@ scikit-learn>=0.24.2
 
 ```bash
 # Basic run (no W&B logging)
-python -m train -d mnist -e 10 -b 32 -o adam -lr 1e-3 \
+python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
     -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy
 
 # With W&B logging
-python -m train -d mnist -e 10 -b 32 -o adam -lr 1e-3 \
+python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
     -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy \
     --wandb_project da6401-a1 --run_name my_run
 ```
@@ -85,13 +93,14 @@ python -m train -d mnist -e 10 -b 32 -o adam -lr 1e-3 \
 | `-e` | `--epochs` | Number of training epochs | `10` |
 | `-b` | `--batch_size` | Mini-batch size | `32` |
 | `-l` | `--loss` | `cross_entropy` or `mse` | `cross_entropy` |
-| `-o` | `--optimizer` | `sgd`, `momentum`, `nag`, `rmsprop`, `adam`, `nadam` | `adam` |
+| `-o` | `--optimizer` | `sgd`, `momentum`, `nag`, `rmsprop` | `rmsprop` |
 | `-lr` | `--learning_rate` | Initial learning rate | `1e-3` |
 | `-wd` | `--weight_decay` | L2 regularisation coefficient | `0.0` |
 | `-nhl` | `--num_layers` | Number of hidden layers | `3` |
 | `-sz` | `--hidden_size` | Neurons per hidden layer (space-separated) | `128 128 128` |
 | `-a` | `--activation` | `relu`, `sigmoid`, or `tanh` | `relu` |
 | `-w_i` | `--weight_init` | `random` or `xavier` | `xavier` |
+| `-w_p` | `--wandb_project` | W&B project name | `None` |
 
 ### W&B Extra Logging Flags
 
@@ -100,92 +109,47 @@ python -m train -d mnist -e 10 -b 32 -o adam -lr 1e-3 \
 | `--log_grad_norms` | Q2.4 — gradient norms per hidden layer per epoch |
 | `--log_dead_neurons` | Q2.5 — fraction of zero-output neurons per layer |
 | `--log_activations` | Q2.5 — activation histograms per layer |
-| `--log_neuron_grads` | Q2.9 — per-neuron grad norms (first 50 iterations + per epoch) |
-| `--zero_init` | Q2.9 — set all weights and biases to zero after construction |
+| `--log_neuron_grads` | Q2.9 — per-neuron grad norms (first 50 iterations) |
+| `--zero_init` | Q2.9 — set all weights and biases to zero |
 
 ---
 
 ## Inference
 
 ```bash
-python -m inference --model_path ../models/best_model.npy \
-    -d mnist -nhl 3 -sz 128 128 128 -a relu
+python -m inference --model_path best_model.npy \
+    -d mnist -nhl 3 -sz 128 128 128 -a relu -o rmsprop
 ```
 
 Outputs: **Accuracy, Precision, Recall, F1-score** (macro-averaged).
 
 ---
 
-## Hyperparameter Sweep (Q2.2)
-
-```bash
-python -m sweep --wandb_project da6401-a1 --count 100
-```
-
-Runs a 100-trial Bayesian sweep over: learning rate, batch size, number of layers, hidden size, activation, optimizer, weight decay.
-
----
-
-## Data Exploration (Q2.1)
-
-```bash
-python -m data_exploration --wandb_project da6401-a1
-```
-
-Logs to W&B: sample image table (5 per class), class-distribution bar chart, per-class mean-image grid, and inter-class cosine-similarity heatmap.
-
----
-
-## Error Analysis (Q2.8)
-
-```bash
-python -m error_analysis \
-    --model_path ../models/best_model.npy \
-    --wandb_project da6401-a1 \
-    -d mnist -nhl 3 -sz 128 128 128 -a relu
-```
-
-Logs: standard confusion matrix, per-class accuracy bar chart, and a grid of the most confidently mis-classified examples per class.
-
----
-
 ## Implementation Notes
 
+### Optimizers
+All four optimizers are implemented from scratch with NumPy:
+- **SGD** — vanilla gradient descent (processes mini-batches).
+- **Momentum** — exponential moving average of gradients.
+- **NAG** — true Nesterov look-ahead: weights are temporarily shifted before the gradient is computed, then restored before the actual update.
+- **RMSProp** — per-parameter adaptive scaling using a running average of squared gradients.
+
 ### Gradient correctness
-All gradients are computed analytically in `NeuralLayer.backward()` and exposed as `self.grad_W` and `self.grad_b` after every call. The cross-entropy + softmax combined gradient `(ŷ − y)` is used directly for the output layer when `loss=cross_entropy`, avoiding a redundant Jacobian multiplication. For `loss=mse`, the full softmax Jacobian-vector product is applied correctly.
+All gradients are computed analytically in `NeuralLayer.backward()` and exposed as `self.grad_W` and `self.grad_b` after every call. The cross-entropy + softmax combined gradient `(ŷ − y)` is used directly for the output layer, avoiding a redundant Jacobian multiplication.
 
 ### Data pipeline
-- Train / validation split: 90 / 10, stratified, using `sklearn.model_selection.train_test_split`.
-- Normalisation uses **training-set statistics only** (mean and std per pixel), applied identically to validation and test sets. No data leakage.
+- Train / validation split: 90 / 10, stratified.
+- Normalisation: pixel values divided by 255 to scale to [0, 1], using training-set statistics only. No data leakage.
 
 ### Weight initialisation
 - `random`: Gaussian with σ = 0.01.
 - `xavier`: Gaussian scaled by `sqrt(2 / (fan_in + fan_out))`.
 
-### Optimizers
-All six optimizers are implemented from scratch with NumPy:
-- **SGD** — vanilla gradient descent.
-- **Momentum** — exponential moving average of gradients.
-- **NAG** — true Nesterov look-ahead: weights are temporarily shifted before the gradient is computed, then restored before the actual update.
-- **RMSProp** — per-parameter adaptive scaling using a running average of squared gradients.
-- **Adam** — bias-corrected first and second moment estimates. Timestep `t` is tracked **per layer** (not globally) to give correct bias correction regardless of network depth.
-- **Nadam** — Nesterov-corrected Adam with look-ahead applied to the moment estimate.
-
----
-
-## W&B Report
-
-Public report link: `https://wandb.ai/harshavardhan-govind-iit-madras/da6401-a1/reports/DA6401_A1--VmlldzoxNjA0MDQyMQ?accessToken=n6c21h9a4s09irursmtbakstof8luxpidunymuazi2q743hxccreej1xc7ti8q53`
-
-The report covers questions Q2.1 through Q2.10 as specified in the assignment.
-
 ---
 
 ## Results
 
-| Dataset | Best Train accuracy | Val accuracy |
+| Dataset | Best Train Accuracy | Val Accuracy |
 |---------|-------------------|---------------|
 | MNIST | 0.99 | 0.97 |
 | Fashion-MNIST | 0.91 | 0.89 |
-
----
