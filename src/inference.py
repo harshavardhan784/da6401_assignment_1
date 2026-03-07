@@ -19,13 +19,13 @@ def parse_arguments():
     parser.add_argument('--model_path', type=str, default='best_model.npy',
                         help='Path to saved model weights (.npy)')
 
-    parser.add_argument('-d',   '--dataset',      type=str,   default='mnist',
+    parser.add_argument('-d',   '--dataset',      type=str,   default='fashion_mnist',
                         choices=['mnist', 'fashion_mnist'])
     parser.add_argument('-b',   '--batch_size',   type=int,   default=32)
     parser.add_argument('-nhl', '--num_layers',   type=int,   default=3)
     parser.add_argument('-sz',  '--hidden_size',  type=int,   nargs='+',
                         default=[128, 128, 128])
-    parser.add_argument('-a',   '--activation',   type=str,   default='relu',
+    parser.add_argument('-a',   '--activation',   type=str,   default='tanh',
                         choices=['relu', 'sigmoid', 'tanh'])
     parser.add_argument('-l',   '--loss',         type=str,   default='cross_entropy',
                         choices=['cross_entropy', 'mse'])

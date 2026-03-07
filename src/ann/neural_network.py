@@ -12,7 +12,7 @@ backward() → Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST laye
              backward() applies softmax internally; pass raw logits as y_pred.
 
              grad_W[0]  → gradient of W for layer 0  (input → hidden1)
-             grad_W[-1] → gradient of W for output layer
+             grad_W[-1] → gradient of W for output layer (last layer)
              All layer.grad_W / layer.grad_b attributes are also populated.
 """
 import numpy as np
@@ -88,9 +88,9 @@ class NeuralNetwork:
 
         Returns
         -------
-        Tuple (grad_W_list, grad_b_list) ordered LAST layer to FIRST layer.
-            grad_W[0]  → gradient of W for output layer (last layer)
-            grad_W[-1] → gradient of W for first (input→hidden1) layer
+        Tuple (grad_W_list, grad_b_list) ordered FIRST layer to LAST layer.
+            grad_W[0]  → gradient of W for first layer (input→hidden1)
+            grad_W[-1] → gradient of W for output layer (last layer)
         All layer.grad_W / layer.grad_b attributes are also populated.
         """
         # Ensure inputs are float64 for numerical precision
@@ -109,8 +109,7 @@ class NeuralNetwork:
             mse_grad = compute_loss_gradient(y_true, y_pred_probs, loss_name=self.loss_name)
             dA = softmax_jacobian_vector_product(mse_grad, y_pred_probs)
 
-        # Backprop through layers in reverse; collect in LAST→FIRST order
-        # Per spec (updated 27-02-2026): return gradients from last layer to first
+        # Backprop through layers in reverse order
         grad_W_list = []
         grad_b_list = []
         for layer in reversed(self.layers):
@@ -118,8 +117,12 @@ class NeuralNetwork:
             grad_W_list.append(layer.grad_W)
             grad_b_list.append(layer.grad_b)
 
-        # Return in LAST→FIRST order (natural backprop order, as per spec 1.2)
-        # grad_W_list[0] = output layer, grad_W_list[-1] = first layer
+        # Reverse so output is FIRST layer to LAST layer order
+        # grad_W_list[0] = first layer (input→hidden1)
+        # grad_W_list[-1] = output layer
+        grad_W_list = grad_W_list[::-1]
+        grad_b_list = grad_b_list[::-1]
+
         return grad_W_list, grad_b_list
 
     def update_weights(self):
