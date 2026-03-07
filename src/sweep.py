@@ -26,7 +26,7 @@ SWEEP_CONFIG = {
         "weight_decay": {"distribution": "log_uniform_values", "min": 1e-5, "max": 1e-2},
         "weight_init":  {"values": ["xavier"]},
         "loss":         {"values": ["cross_entropy"]},
-        "epochs":       {"value": 6},
+        "epochs":       {"value": 12},
     },
 }
 

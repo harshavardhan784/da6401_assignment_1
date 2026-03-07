@@ -59,12 +59,6 @@ python -m sweep --wandb_project da6401-a1 --count 100
 Fixed: 3 hidden layers × 128 neurons, ReLU, Xavier, CE loss, lr=1e-3.
 
 ```bash
-# Linux / macOS
-for OPT in sgd momentum nag rmsprop; do
-  python -m train -d mnist -e 10 -b 32 -o $OPT -lr 1e-3 \
-      -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy \
-      --wandb_project da6401-a1 --run_name "optimizer_${OPT}"
-done
 
 # Windows PowerShell
 foreach ($OPT in @("sgd","momentum","nag","rmsprop")) {
@@ -135,13 +129,9 @@ python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
 Same architecture and learning rate; only --loss differs.
 
 ```bash
-python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy \
-    --wandb_project da6401-a1 --run_name loss_ce
+python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy --wandb_project da6401-a1 --run_name loss_ce
 
-python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l mse \
-    --wandb_project da6401-a1 --run_name loss_mse
+python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l mse --wandb_project da6401-a1 --run_name loss_mse
 ```
 
 ---
@@ -150,21 +140,13 @@ python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 \
 Run a few extra configs to populate the scatter / overlay plot.
 
 ```bash
-python -m train -d mnist -e 10 -b 64 -o sgd -lr 1e-2 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name global_sgd_lr1e-2
+python -m train -d mnist -e 10 -b 64 -o sgd -lr 1e-2 -nhl 3 -sz 128 128 128 -a relu -w_i xavier --wandb_project da6401-a1 --run_name global_sgd_lr1e-2
 
-python -m train -d mnist -e 10 -b 32 -o nag -lr 1e-3 \
-    -nhl 4 -sz 128 128 128 128 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name global_nag_4L
+python -m train -d mnist -e 10 -b 32 -o nag -lr 1e-3 -nhl 4 -sz 128 128 128 128 -a relu -w_i xavier --wandb_project da6401-a1 --run_name global_nag_4L
 
-python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 -wd 1e-4 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name global_rmsprop_wd
+python -m train -d mnist -e 10 -b 32 -o rmsprop -lr 1e-3 -wd 1e-4 -nhl 3 -sz 128 128 128 -a relu -w_i xavier --wandb_project da6401-a1 --run_name global_rmsprop_wd
 
-python -m train -d mnist -e 10 -b 32 -o momentum -lr 1e-3 \
-    -nhl 3 -sz 64 64 64 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name global_momentum_64x3
+python -m train -d mnist -e 10 -b 32 -o momentum -lr 1e-3 -nhl 3 -sz 64 64 64 -a relu -w_i xavier --wandb_project da6401-a1 --run_name global_momentum_64x3
 ```
 
 ---
@@ -175,16 +157,10 @@ Logs: wandb confusion matrix, per-class accuracy bar chart,
 
 ```bash
 # Standard error analysis on best saved model
-python -m error_analysis \
-    --model_path best_model.npy \
-    --wandb_project da6401-a1 \
-    -d mnist -nhl 3 -sz 128 128 128 -a relu -o rmsprop
+python -m error_analysis --model_path best_model.npy --wandb_project da6401-a1 -d mnist -nhl 3 -sz 128 128 128 -a relu -o rmsprop
 
 # Fashion-MNIST version
-python -m error_analysis \
-    --model_path best_model.npy \
-    --wandb_project da6401-a1 \
-    -d fashion_mnist -nhl 4 -sz 128 128 128 128 -a relu -o rmsprop
+python -m error_analysis --model_path best_model.npy --wandb_project da6401-a1 -d fashion_mnist -nhl 4 -sz 128 128 128 128 -a relu -o rmsprop
 ```
 > W&B UI → run "error_analysis" → Charts tab:
 >   • confusion_matrix — standard heatmap
@@ -199,18 +175,12 @@ in every hidden layer at every iteration for the first 50 steps.
 
 Xavier run — gradients diverge immediately (symmetry broken):
 ```bash
-python -m train -d mnist -e 5 -b 32 -o sgd -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name init_xavier \
-    --log_neuron_grads
+python -m train -d mnist -e 5 -b 32 -o sgd -lr 1e-3 -nhl 3 -sz 128 128 128 -a relu -w_i xavier --wandb_project da6401-a1 --run_name init_xavier --log_neuron_grads
 ```
 
 Zeros run — ALL 5 neuron lines overlap perfectly (symmetry unbroken):
 ```bash
-python -m train -d mnist -e 5 -b 32 -o sgd -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier \
-    --wandb_project da6401-a1 --run_name init_zeros \
-    --log_neuron_grads --zero_init
+python -m train -d mnist -e 5 -b 32 -o sgd -lr 1e-3 -nhl 3 -sz 128 128 128 -a relu -w_i xavier --wandb_project da6401-a1 --run_name init_zeros --log_neuron_grads --zero_init
 ```
 
 ---
@@ -222,15 +192,9 @@ Based on MNIST sweeps, pick 3 configurations:
   3. RMSProp + Tanh + 3L×128        (smooth activation on harder dataset)
 
 ```bash
-python -m train -d fashion_mnist -e 15 -b 32 -o rmsprop -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy \
-    --wandb_project da6401-a1 --run_name fashion_rmsprop_relu_3L
+python -m train -d fashion_mnist -e 15 -b 32 -o rmsprop -lr 1e-3 -nhl 3 -sz 128 128 128 -a relu -w_i xavier -l cross_entropy --wandb_project da6401-a1 --run_name fashion_rmsprop_relu_3L
 
-python -m train -d fashion_mnist -e 15 -b 32 -o nag -lr 1e-3 -wd 1e-4 \
-    -nhl 4 -sz 128 128 128 128 -a relu -w_i xavier -l cross_entropy \
-    --wandb_project da6401-a1 --run_name fashion_nag_relu_4L_wd
+python -m train -d fashion_mnist -e 15 -b 32 -o nag -lr 1e-3 -wd 1e-4 -nhl 4 -sz 128 128 128 128 -a relu -w_i xavier -l cross_entropy --wandb_project da6401-a1 --run_name fashion_nag_relu_4L_wd
 
-python -m train -d fashion_mnist -e 15 -b 32 -o rmsprop -lr 1e-3 \
-    -nhl 3 -sz 128 128 128 -a tanh -w_i xavier -l cross_entropy \
-    --wandb_project da6401-a1 --run_name fashion_rmsprop_tanh_3L
+python -m train -d fashion_mnist -e 15 -b 32 -o rmsprop -lr 1e-3 -nhl 3 -sz 128 128 128 -a tanh -w_i xavier -l cross_entropy --wandb_project da6401-a1 --run_name fashion_rmsprop_tanh_3L
 ```
